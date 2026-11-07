@@ -11,6 +11,7 @@ requires-python = ">=3.12"
 [project.scripts]
 reviews-download = "reviews.download:main"
 reviews-prepare = "reviews.prepare:main"
+reviews-annotate = "reviews.annotate_app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
