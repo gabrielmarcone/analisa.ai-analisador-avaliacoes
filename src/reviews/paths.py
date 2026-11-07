@@ -19,3 +19,12 @@ SPLITS_DIR = PROJECT_ROOT / "splits"
 SPLITS_FILE = SPLITS_DIR / "olist_splits_v1.csv"
 
 PROCESSED_REVIEWS_FILE = PROCESSED_DIR / "reviews.parquet"
+
+# Anotações guardam só IDs e rótulos (sem texto), por isso ficam no Git.
+ANNOTATIONS_DIR = PROJECT_ROOT / "annotations"
+QUEUE_FILE = ANNOTATIONS_DIR / "fila_v1.csv"
+LABELS_FILE = ANNOTATIONS_DIR / "rotulos_v1.csv"
+AGREEMENT_QUEUE_FILE = ANNOTATIONS_DIR / "fila_concordancia_v1.csv"
+AGREEMENT_LABELS_FILE = ANNOTATIONS_DIR / "rotulos_concordancia_v1.csv"
+
+REPORTS_DIR = PROJECT_ROOT / "reports"
