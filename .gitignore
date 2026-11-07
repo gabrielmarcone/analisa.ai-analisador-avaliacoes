@@ -3,6 +3,9 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 
 # Segredos
 .env
@@ -13,6 +16,7 @@ models/
 *.pt
 *.bin
 *.safetensors
+*.parquet
 
 # Sistema
 .DS_Store

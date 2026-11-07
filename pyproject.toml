@@ -1,11 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "analisador-avaliacoes"
 version = "0.1.0"
-requires-python = ">=3.11"
+description = "Classificação de avaliações de e-commerce brasileiro (base Olist) com TF-IDF, BERTimbau e LLM."
+requires-python = ">=3.12"
+
+[project.scripts]
+reviews-download = "reviews.download:main"
+reviews-prepare = "reviews.prepare:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

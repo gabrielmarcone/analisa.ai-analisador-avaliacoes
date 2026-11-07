@@ -1,7 +1,8 @@
-pandas
-numpy
-scikit-learn
-matplotlib
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+pyarrow>=15
+matplotlib>=3.8
 jupyter
-kaggle
-python-dotenv
+kaggle>=1.7
+python-dotenv>=1.0
