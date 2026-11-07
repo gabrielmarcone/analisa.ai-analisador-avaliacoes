@@ -1,0 +1,20 @@
+# Ambiente
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Segredos
+.env
+
+# Dados e modelos (pesados, não vão pro Git)
+data/
+models/
+*.pt
+*.bin
+*.safetensors
+
+# Sistema
+.DS_Store
+Thumbs.db
+.vscode/
