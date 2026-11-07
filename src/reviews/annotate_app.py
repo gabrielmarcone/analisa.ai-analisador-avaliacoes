@@ -207,11 +207,13 @@ def build_app(session: AnnotationSession):
 
 GUIDE_SUMMARY = """
 - **Anote o que o texto diz.** Não use nota nem dados de entrega.
-- **Atraso** e **Não recebido** podem ir juntos ("não chegou e passou do prazo").
-- Chegou **parte** do pedido? É **Pedido incompleto**, não "Não recebido".
+- **Atraso** só com prazo, data, demora ou duração. "Até hoje não chegou" é só **Não recebido**.
+- Chegou **parte** do pedido? É só **Pedido incompleto** (nota fiscal sozinha não conta).
 - Não é o anunciado (ou é falsificado)? **Produto errado**. É o certo mas ruim? **Defeito**.
 - **Atendimento** só com reclamação do processo (sem resposta, reembolso, cancelamento).
 - Falta de estoque após a compra: **Atendimento** + **Não recebido**.
+- Retirar nos Correios: já pegou → **Outro**; ainda não pegou → **Não recebido** + **Outro**.
+- Reclamação genérica ("Péssimo", "Ruim") → **Outro**.
 - **Sem reclamação** nunca vai junto com outro rótulo.
 - Em dúvida? Marque **Revisar depois** e siga. O guia completo está em `docs/guia_anotacao.md`.
 """
