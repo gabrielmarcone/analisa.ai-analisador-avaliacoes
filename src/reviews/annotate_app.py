@@ -233,6 +233,7 @@ GUIDE_SUMMARY = """
 - **Atendimento** só com reclamação do processo (sem resposta, reembolso, cancelamento).
 - Falta de estoque após a compra: **Atendimento** + **Não recebido**.
 - Retirar nos Correios: já pegou → **Outro**; ainda não pegou → **Não recebido** + **Outro**.
+- Culpar os Correios pelo atraso não é **Outro**.
 - Reclamação genérica ("Péssimo", "Ruim") → **Outro**.
 - **Sem reclamação** nunca vai junto com outro rótulo.
 - Em dúvida? Marque **Revisar depois** e siga. O guia completo está em `docs/guia_anotacao.md`.
