@@ -33,6 +33,7 @@ Os nomes de loja que aparecem nos textos (lannister, stark, targaryen, baratheon
 4. **Pedido de devolução sozinho não é *Atendimento*.** Marque *Atendimento* quando houver reclamação do processo: "pedi a troca e ninguém respondeu", "cancelei e não devolveram o dinheiro".
 5. **Falta de estoque depois da compra** recebe *Atendimento* (a loja cancelou) e *Não recebido* (o produto não chegou).
 6. **Retirada nos Correios.** Se o cliente teve que buscar o produto e já pegou, é *Outro*. Se ainda não conseguiu pegar, é *Não recebido* e *Outro*.
+   - **Culpar os Correios não é *Outro*.** "Os Correios atrasaram" ou "está parado nos Correios" recebe só *Atraso* e/ou *Não recebido*. *Outro* entra apenas quando o cliente teve que buscar o produto.
 7. **Reclamação genérica** ("Péssimo", "Ruim") sem dizer o problema é *Outro*. Não deduza um defeito que o texto não cita.
 8. **Na dúvida, marque "Revisar"** e siga em frente. Volte aos casos marcados no fim da sessão. Não fique mais de 30 segundos numa avaliação.
 
@@ -76,3 +77,4 @@ Sessões curtas rendem mais: 30 a 45 minutos e uma pausa. O app salva a cada ava
 - **v1:** versão inicial, criada a partir da leitura das avaliações negativas do treino.
 - **v2:** depois do piloto. Atraso só com marca de tempo; reclamação genérica e retirada nos Correios vão para *Outro*; nota fiscal sozinha não conta como parte do pedido; "não faz o que promete" é *Defeito*. 22 rótulos do piloto foram corrigidos para seguir estas regras.
 - **v2.1:** a regra 1 ganhou dois esclarecimentos (Atraso não substitui Não recebido; "não chegou na data" é só Atraso). 19 rótulos do teste foram ajustados: uma checagem automática por palavras-chave apontou os casos e as correções seguem só a regra 1, sem novo julgamento sobre o texto.
+- **v2.2:** ao fim do teste (500). Regra 6 esclarecida: atraso ou extravio atribuído aos Correios não é *Outro*. Pela mesma checagem automática, 10 rótulos do teste foram ajustados (5 sem *Não recebido* quando o texto diz que ainda não chegou, 2 com *Atraso* sem marca de tempo, 3 com *Outro* por culpa dos Correios).
