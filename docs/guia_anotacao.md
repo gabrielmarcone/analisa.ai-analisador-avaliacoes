@@ -26,6 +26,8 @@ Os nomes de loja que aparecem nos textos (lannister, stark, targaryen, baratheon
 ## Regras de desempate
 
 1. **Atraso só com marca de tempo.** "Ainda não recebi e já passou do prazo" recebe *Atraso* e *Não recebido*. "Ainda não recebi" e "até hoje não chegou" recebem só *Não recebido*. "Atraso na entrega" recebe só *Atraso*.
+   - **Atraso não substitui Não recebido.** Se o texto diz que o produto *ainda* não chegou, *Não recebido* entra sempre, com ou sem *Atraso*.
+   - "Não chegou na data" (sem dizer se chegou depois) recebe só *Atraso*.
 2. **Chegou alguma coisa? Então não é *Não recebido*.** "Comprei 2, recebi 1" é só *Pedido incompleto*. Exceção: se chegou só a nota fiscal, é *Não recebido*.
 3. **Diferente × ruim:** se o problema é *não ser o que foi anunciado*, é *Produto errado*. Se é o produto certo mas com defeito ou fraco, é *Defeito ou qualidade*. Falsificado conta como *Produto errado*.
 4. **Pedido de devolução sozinho não é *Atendimento*.** Marque *Atendimento* quando houver reclamação do processo: "pedi a troca e ninguém respondeu", "cancelei e não devolveram o dinheiro".
@@ -73,3 +75,4 @@ Sessões curtas rendem mais: 30 a 45 minutos e uma pausa. O app salva a cada ava
 
 - **v1:** versão inicial, criada a partir da leitura das avaliações negativas do treino.
 - **v2:** depois do piloto. Atraso só com marca de tempo; reclamação genérica e retirada nos Correios vão para *Outro*; nota fiscal sozinha não conta como parte do pedido; "não faz o que promete" é *Defeito*. 22 rótulos do piloto foram corrigidos para seguir estas regras.
+- **v2.1:** a regra 1 ganhou dois esclarecimentos (Atraso não substitui Não recebido; "não chegou na data" é só Atraso). 19 rótulos do teste foram ajustados: uma checagem automática por palavras-chave apontou os casos e as correções seguem só a regra 1, sem novo julgamento sobre o texto.

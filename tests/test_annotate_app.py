@@ -70,3 +70,18 @@ def test_interface_monta_sem_erros(session):
 
     app = build_app(session)
     assert app is not None
+
+
+def test_correcao_externa_nao_e_apagada(session):
+    from reviews.annotation import save_labels, upsert_label
+
+    session.save(0, ["atraso"], False, "")
+    # Alguém corrige o item "a" direto no arquivo com o app aberto...
+    fixed = upsert_label(load_labels(session.labels_path), "a", ["nao_recebido"])
+    save_labels(fixed, session.labels_path)
+    # ...e o app mostra a correção e não a apaga ao salvar outro item.
+    assert session.view(0)["selected"] == ["nao_recebido"]
+    session.save(1, ["defeito_qualidade"], False, "")
+    saved = load_labels(session.labels_path).set_index("review_id")
+    assert saved.loc["a", "nao_recebido"] == 1 and saved.loc["a", "atraso"] == 0
+    assert saved.loc["b", "defeito_qualidade"] == 1
