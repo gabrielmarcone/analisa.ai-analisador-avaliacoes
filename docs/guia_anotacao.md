@@ -1,6 +1,6 @@
 # Guia de anotação: tipos de problema
 
-Versão 1. Atualize a versão sempre que mudar uma regra, e registre a mudança no fim do arquivo.
+Versão 2. Atualize a versão sempre que mudar uma regra, e registre a mudança no fim do arquivo.
 
 ## O que estamos anotando
 
@@ -14,23 +14,27 @@ Os nomes de loja que aparecem nos textos (lannister, stark, targaryen, baratheon
 
 | Rótulo | Marque quando o cliente diz que… | Não marque quando… |
 |---|---|---|
-| **Atraso na entrega** | a entrega demorou, passou do prazo, o prazo foi estendido ou está atrasada | só diz que ainda não recebeu, sem falar em demora ou prazo (aí é só *Não recebido*) |
-| **Não recebido** | **nada** do pedido chegou até o momento da avaliação, ou a loja avisou que não vai entregar | chegou parte do pedido (é *Pedido incompleto*) |
+| **Atraso na entrega** | o texto cita **prazo, data, demora, atraso ou uma duração** ("faz 2 meses", "quase um mês") | só diz que ainda não recebeu. "Até o momento", "até hoje" e "ainda" **não** contam como demora (aí é só *Não recebido*) |
+| **Não recebido** | **nada** do pedido chegou até o momento da avaliação, ou a loja avisou que não vai entregar | chegou parte do pedido (é *Pedido incompleto*). Só a nota fiscal não conta como parte |
 | **Pedido incompleto** | chegou só parte dos itens, ou o produto veio faltando peça, acessório ou quantidade | o produto chegou inteiro mas é diferente do anúncio |
 | **Produto errado ou diferente** | recebeu outro produto, ou modelo, cor, tamanho, marca ou especificação diferente do anúncio; produto falsificado, réplica ou usado vendido como novo | o produto é o certo, mas não agradou ou é ruim (é *Defeito ou qualidade*) |
-| **Defeito, avaria ou má qualidade** | o produto veio quebrado, amassado, danificado, vencido, não funciona, parou de funcionar ou tem qualidade ruim | só a embalagem externa veio danificada e o produto está bem (é *Outro*) |
+| **Defeito, avaria ou má qualidade** | o produto veio quebrado, amassado, danificado, vencido, não funciona, parou de funcionar, não faz o que promete ou tem qualidade ruim | só a embalagem externa veio danificada e o produto está bem (é *Outro*) |
 | **Atendimento, cancelamento ou reembolso** | a loja não responde; houve cancelamento (inclusive por falta de estoque); o estorno ou reembolso não aconteceu; a troca ou devolução está difícil; cobrança indevida | o cliente só diz que *quer* devolver ou trocar, sem reclamar de como a loja tratou o pedido |
-| **Outro problema** | há uma reclamação real que não cabe acima: frete caro, ter que retirar nos Correios, embalagem ruim com produto intacto, site, nota fiscal, falta de manual | o problema cabe numa categoria acima |
+| **Outro problema** | há uma reclamação real que não cabe acima: frete caro, ter que retirar nos Correios, embalagem ruim com produto intacto, site, nota fiscal, falta de manual; ou uma **reclamação genérica** que não diz o problema ("Péssimo", "Ruim", "Não recomendo") | o problema cabe numa categoria acima |
 | **Sem reclamação no texto** | o texto não descreve nenhum problema (elogio, texto neutro, sem sentido) | houver qualquer problema descrito. **Este rótulo nunca vai junto com outro.** |
 
 ## Regras de desempate
 
-1. **Atraso e Não recebido podem ir juntos.** "Ainda não recebi e já passou do prazo" recebe os dois. "Não recebi o produto" recebe só *Não recebido*. "Atraso na entrega" recebe só *Atraso*.
-2. **Chegou alguma coisa? Então não é *Não recebido*.** "Comprei 2, recebi 1" é *Pedido incompleto*.
+1. **Atraso só com marca de tempo.** "Ainda não recebi e já passou do prazo" recebe *Atraso* e *Não recebido*. "Ainda não recebi" e "até hoje não chegou" recebem só *Não recebido*. "Atraso na entrega" recebe só *Atraso*.
+   - **Atraso não substitui Não recebido.** Se o texto diz que o produto *ainda* não chegou, *Não recebido* entra sempre, com ou sem *Atraso*.
+   - "Não chegou na data" (sem dizer se chegou depois) recebe só *Atraso*.
+2. **Chegou alguma coisa? Então não é *Não recebido*.** "Comprei 2, recebi 1" é só *Pedido incompleto*. Exceção: se chegou só a nota fiscal, é *Não recebido*.
 3. **Diferente × ruim:** se o problema é *não ser o que foi anunciado*, é *Produto errado*. Se é o produto certo mas com defeito ou fraco, é *Defeito ou qualidade*. Falsificado conta como *Produto errado*.
 4. **Pedido de devolução sozinho não é *Atendimento*.** Marque *Atendimento* quando houver reclamação do processo: "pedi a troca e ninguém respondeu", "cancelei e não devolveram o dinheiro".
 5. **Falta de estoque depois da compra** recebe *Atendimento* (a loja cancelou) e *Não recebido* (o produto não chegou).
-6. **Na dúvida, marque "Revisar"** e siga em frente. Volte aos casos marcados no fim da sessão. Não fique mais de 30 segundos numa avaliação.
+6. **Retirada nos Correios.** Se o cliente teve que buscar o produto e já pegou, é *Outro*. Se ainda não conseguiu pegar, é *Não recebido* e *Outro*.
+7. **Reclamação genérica** ("Péssimo", "Ruim") sem dizer o problema é *Outro*. Não deduza um defeito que o texto não cita.
+8. **Na dúvida, marque "Revisar"** e siga em frente. Volte aos casos marcados no fim da sessão. Não fique mais de 30 segundos numa avaliação.
 
 ## Exemplos (todos do conjunto de treino)
 
@@ -70,3 +74,5 @@ Sessões curtas rendem mais: 30 a 45 minutos e uma pausa. O app salva a cada ava
 ## Histórico de versões
 
 - **v1:** versão inicial, criada a partir da leitura das avaliações negativas do treino.
+- **v2:** depois do piloto. Atraso só com marca de tempo; reclamação genérica e retirada nos Correios vão para *Outro*; nota fiscal sozinha não conta como parte do pedido; "não faz o que promete" é *Defeito*. 22 rótulos do piloto foram corrigidos para seguir estas regras.
+- **v2.1:** a regra 1 ganhou dois esclarecimentos (Atraso não substitui Não recebido; "não chegou na data" é só Atraso). 19 rótulos do teste foram ajustados: uma checagem automática por palavras-chave apontou os casos e as correções seguem só a regra 1, sem novo julgamento sobre o texto.

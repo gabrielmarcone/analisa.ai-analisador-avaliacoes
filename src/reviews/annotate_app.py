@@ -69,6 +69,15 @@ class AnnotationSession:
     def size(self) -> int:
         return len(self.queue)
 
+    def refresh(self) -> None:
+        """Relê os rótulos do disco.
+
+        Assim, correções feitas no arquivo com o app aberto não são apagadas
+        pelo próximo "Salvar", e a tela sempre mostra o que está gravado.
+        """
+        self.labels = load_labels(self.labels_path)
+        self._done = set(self.labels["review_id"])
+
     def first_pending(self, start: int = 0) -> int:
         """Índice da próxima avaliação sem rótulo a partir de `start` (ou o fim da fila)."""
         ids = self.queue["review_id"].tolist()
@@ -82,6 +91,7 @@ class AnnotationSession:
 
     def view(self, idx: int) -> dict:
         """Tudo que a tela precisa mostrar para a avaliação na posição `idx`."""
+        self.refresh()
         done = len(self._done & set(self.queue["review_id"]))
         header = f"**{done} de {self.size} anotadas**"
         if idx >= self.size:
@@ -118,6 +128,7 @@ class AnnotationSession:
         if not 0 <= idx < self.size:
             raise ValueError("Não há avaliação nesta posição.")
         review_id = self.queue.iloc[idx]["review_id"]
+        self.refresh()
         updated = upsert_label(self.labels, review_id, selected, revisar, clean_note(note))
         save_labels(updated, self.labels_path)
         self.labels = updated
@@ -176,6 +187,11 @@ def build_app(session: AnnotationSession):
     def on_next_pending(idx):
         return show(session.first_pending(int(idx) + 1))
 
+    def on_goto(idx, item):
+        if item is None or not 1 <= int(item) <= session.size:
+            return (*show(int(idx))[:-1], f"⚠️ Digite um número de 1 a {session.size}.")
+        return show(int(item) - 1)
+
     with gr.Blocks(title="Anotação de avaliações", analytics_enabled=False) as app:
         gr.Markdown("## Anotação de avaliações negativas")
         idx_state = gr.State(0)
@@ -193,6 +209,9 @@ def build_app(session: AnnotationSession):
             prev_btn = gr.Button("← Anterior")
             next_btn = gr.Button("Próxima pendente →")
             save_btn = gr.Button("Salvar e seguir", variant="primary")
+        with gr.Row():
+            goto_item = gr.Number(label="Ir para o item nº", precision=0, minimum=1, scale=3)
+            goto_btn = gr.Button("Ir", scale=1)
         status = gr.Markdown()
         with gr.Accordion("Resumo do guia", open=False):
             gr.Markdown(GUIDE_SUMMARY)
@@ -201,17 +220,20 @@ def build_app(session: AnnotationSession):
         save_btn.click(on_save, [idx_state, checks, revisar, note], outputs)
         prev_btn.click(on_previous, [idx_state], outputs)
         next_btn.click(on_next_pending, [idx_state], outputs)
+        goto_btn.click(on_goto, [idx_state, goto_item], outputs)
         app.load(lambda: show(session.first_pending(0)), None, outputs)
     return app
 
 
 GUIDE_SUMMARY = """
 - **Anote o que o texto diz.** Não use nota nem dados de entrega.
-- **Atraso** e **Não recebido** podem ir juntos ("não chegou e passou do prazo").
-- Chegou **parte** do pedido? É **Pedido incompleto**, não "Não recebido".
+- **Atraso** só com prazo, data, demora ou duração. "Até hoje não chegou" é só **Não recebido**.
+- Chegou **parte** do pedido? É só **Pedido incompleto** (nota fiscal sozinha não conta).
 - Não é o anunciado (ou é falsificado)? **Produto errado**. É o certo mas ruim? **Defeito**.
 - **Atendimento** só com reclamação do processo (sem resposta, reembolso, cancelamento).
 - Falta de estoque após a compra: **Atendimento** + **Não recebido**.
+- Retirar nos Correios: já pegou → **Outro**; ainda não pegou → **Não recebido** + **Outro**.
+- Reclamação genérica ("Péssimo", "Ruim") → **Outro**.
 - **Sem reclamação** nunca vai junto com outro rótulo.
 - Em dúvida? Marque **Revisar depois** e siga. O guia completo está em `docs/guia_anotacao.md`.
 """
