@@ -230,11 +230,15 @@ GUIDE_SUMMARY = """
 - **Atraso** só com prazo, data, demora ou duração. "Até hoje não chegou" é só **Não recebido**.
 - Chegou **parte** do pedido? É só **Pedido incompleto** (nota fiscal sozinha não conta).
 - Não é o anunciado (ou é falsificado)? **Produto errado**. É o certo mas ruim? **Defeito**.
-- **Atendimento** só com reclamação do processo (sem resposta, reembolso, cancelamento).
+- **Atendimento**: reclamação do processo ou pedido de cancelamento, troca, devolução ou reembolso.
 - Falta de estoque após a compra: **Atendimento** + **Não recebido**.
 - Retirar nos Correios: já pegou → **Outro**; ainda não pegou → **Não recebido** + **Outro**.
 - Culpar os Correios pelo atraso não é **Outro**.
 - Reclamação genérica ("Péssimo", "Ruim") → **Outro**.
+- "Consta como entregue, mas não chegou" → **Não recebido** (não é Outro).
+- Embalagem ruim → **Outro** (junto com Defeito se o produto chegou danificado).
+- Nota fiscal só como prova não conta. "Não funciona" é **Defeito**; incompatível é **Outro**.
+- **Outro** é o último recurso: confira antes se outra categoria cobre o problema.
 - **Sem reclamação** nunca vai junto com outro rótulo.
 - Em dúvida? Marque **Revisar depois** e siga. O guia completo está em `docs/guia_anotacao.md`.
 """
