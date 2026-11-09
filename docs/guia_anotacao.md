@@ -1,6 +1,6 @@
 # Guia de anotação: tipos de problema
 
-Versão 3. Atualize a versão sempre que mudar uma regra, e registre a mudança no fim do arquivo.
+Versão 3.1. Atualize a versão sempre que mudar uma regra, e registre a mudança no fim do arquivo.
 
 ## O que estamos anotando
 
@@ -19,7 +19,7 @@ Os nomes de loja que aparecem nos textos (lannister, stark, targaryen, baratheon
 | **Pedido incompleto** | o texto diz que chegou só parte dos itens, ou que o produto veio faltando peça, acessório ou quantidade | o produto chegou inteiro mas é diferente do anúncio; ou o texto só diz "não recebi X" sem dizer que algo chegou (é *Não recebido*) |
 | **Produto errado ou diferente** | recebeu outro produto, ou modelo, cor, tamanho, marca ou especificação diferente do anúncio; produto falsificado, réplica ou usado vendido como novo | o produto é o certo, mas não agradou ou é ruim (é *Defeito ou qualidade*) |
 | **Defeito, avaria ou má qualidade** | o produto veio quebrado, amassado, danificado, vencido, não funciona, não é reconhecido pelo aparelho, parou de funcionar, não faz o que promete ou tem qualidade ruim | só a embalagem externa veio danificada e o produto está bem (é *Outro*) |
-| **Atendimento, cancelamento ou reembolso** | a loja não responde; houve cancelamento (inclusive por falta de estoque); o cliente pede ou já pediu cancelamento, troca, devolução ou reembolso; o estorno não aconteceu; cobrança indevida | o cliente só desabafa ("não quero esse produto") sem acionar a loja |
+| **Atendimento, cancelamento ou reembolso** | a loja não responde ou não dá satisfação, aviso ou justificativa ("não avisaram o atraso", "nenhuma satisfação"); houve cancelamento (inclusive por falta de estoque); o cliente pede ou já pediu cancelamento, troca, devolução ou reembolso; o estorno não aconteceu; cobrança indevida | o cliente só desabafa ("não quero esse produto") sem acionar a loja |
 | **Outro problema** | há uma reclamação real que não cabe acima: frete caro, ter que retirar nos Correios, embalagem ruim, nota fiscal que faltou ou veio errada, site, falta de manual, incompatibilidade com o aparelho do cliente; ou uma **reclamação genérica** que não diz o problema ("Péssimo", "Falta de compromisso") | o problema cabe numa categoria acima |
 | **Sem reclamação no texto** | o texto não descreve nenhum problema (elogio, texto neutro, sem sentido) | houver qualquer problema descrito. **Este rótulo nunca vai junto com outro.** |
 
@@ -84,3 +84,4 @@ Sessões curtas rendem mais: 30 a 45 minutos e uma pausa. O app salva a cada ava
 - **v2.1:** a regra 1 ganhou dois esclarecimentos (Atraso não substitui Não recebido; "não chegou na data" é só Atraso). 19 rótulos do teste foram ajustados: uma checagem automática por palavras-chave apontou os casos e as correções seguem só a regra 1, sem novo julgamento sobre o texto.
 - **v2.2:** ao fim do teste (500). Regra 6 esclarecida: atraso ou extravio atribuído aos Correios não é *Outro*. Pela mesma checagem automática, 10 rótulos do teste foram ajustados (5 sem *Não recebido* quando o texto diz que ainda não chegou, 2 com *Atraso* sem marca de tempo, 3 com *Outro* por culpa dos Correios).
 - **v3:** ao fim da validação (250). O guia passou a refletir o critério que já vinha sendo seguido nas três etapas (regra 4: pedir troca ou reembolso é *Atendimento*) e ganhou as regras 8 a 12 para os casos que estavam divididos ("consta como entregue", nota fiscal, embalagem, incompatibilidade, *Outro* como último recurso). Para seguir essas regras, 59 rótulos foram ajustados (35 da validação, 23 do teste e 1 do piloto). No teste, as mudanças só aplicam as regras escritas; nenhuma muda a interpretação do texto.
+- **v3.1:** depois de 350 avaliações do treino. Explicitado que a loja não dar satisfação, aviso ou resposta é *Atendimento* (critério seguido em 48 de 60 casos). Com isso, 36 rótulos foram ajustados: 28 do treino (revisão completa) e 8 do piloto, teste e validação (só esta regra). Casos de "aguardo solução" ou "aguardo posicionamento" continuam a critério do anotador.

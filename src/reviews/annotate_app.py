@@ -266,7 +266,8 @@ GUIDE_SUMMARY = """
 - **Atraso** só com prazo, data, demora ou duração. "Até hoje não chegou" é só **Não recebido**.
 - Chegou **parte** do pedido? É só **Pedido incompleto** (nota fiscal sozinha não conta).
 - Não é o anunciado (ou é falsificado)? **Produto errado**. É o certo mas ruim? **Defeito**.
-- **Atendimento**: reclamação do processo ou pedido de cancelamento, troca, devolução ou reembolso.
+- **Atendimento**: loja não responde ou não dá satisfação;
+  ou pedido de cancelamento, troca, devolução ou reembolso.
 - Falta de estoque após a compra: **Atendimento** + **Não recebido**.
 - Retirar nos Correios: já pegou → **Outro**; ainda não pegou → **Não recebido** + **Outro**.
 - Culpar os Correios pelo atraso não é **Outro**.
