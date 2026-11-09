@@ -37,6 +37,11 @@ from reviews.paths import (
     QUEUE_FILE,
 )
 
+STALE_PAGE = (
+    "A página ficou desatualizada e nada foi salvo. Recarregue a página (F5), "
+    "confira a avaliação na tela e marque de novo."
+)
+
 STAGE_NAMES = {
     "piloto": "Piloto (treino)",
     "teste": "Teste",
@@ -123,11 +128,27 @@ class AnnotationSession:
             "note": str(note),
         }
 
-    def save(self, idx: int, selected: list[str], revisar: bool, note: str) -> int:
-        """Salva os rótulos de `idx` em disco e devolve o índice da próxima pendente."""
+    def review_id_at(self, idx: int) -> str | None:
+        return self.queue.iloc[idx]["review_id"] if 0 <= idx < self.size else None
+
+    def save(
+        self,
+        idx: int,
+        selected: list[str],
+        revisar: bool,
+        note: str,
+        expected_review_id: str | None = None,
+    ) -> int:
+        """Salva os rótulos de `idx` em disco e devolve o índice da próxima pendente.
+
+        `expected_review_id` é a avaliação que estava na tela. Se não bater com `idx`,
+        a página ficou desatualizada e nada é gravado (evita rótulo no item errado).
+        """
         if not 0 <= idx < self.size:
             raise ValueError("Não há avaliação nesta posição.")
         review_id = self.queue.iloc[idx]["review_id"]
+        if expected_review_id is not None and expected_review_id != review_id:
+            raise ValueError(STALE_PAGE)
         self.refresh()
         updated = upsert_label(self.labels, review_id, selected, revisar, clean_note(note))
         save_labels(updated, self.labels_path)
@@ -171,14 +192,28 @@ def build_app(session: AnnotationSession):
 
     def show(idx: int, status: str = ""):
         v = session.view(idx)
-        return v["idx"], v["header"], v["text"], v["selected"], v["revisar"], v["note"], status
+        shown_id = session.review_id_at(v["idx"])
+        return (
+            v["idx"],
+            shown_id,
+            v["header"],
+            v["text"],
+            v["selected"],
+            v["revisar"],
+            v["note"],
+            status,
+        )
 
-    def on_save(idx, selected, revisar, note):
+    def on_save(idx, shown_id, selected, revisar, note):
+        if shown_id is None:
+            # A sessão foi reiniciada: não dá para saber qual avaliação está na tela.
+            return (idx, shown_id, gr.skip(), gr.skip(), selected, revisar, note, f"⚠️ {STALE_PAGE}")
         try:
-            next_idx = session.save(int(idx), selected or [], bool(revisar), note or "")
+            next_idx = session.save(
+                int(idx), selected or [], bool(revisar), note or "", expected_review_id=shown_id
+            )
         except (ValueError, PermissionError) as err:
-            v = session.view(int(idx))
-            return idx, v["header"], v["text"], selected, revisar, note, f"⚠️ {err}"
+            return (idx, shown_id, gr.skip(), gr.skip(), selected, revisar, note, f"⚠️ {err}")
         return show(next_idx, "Salvo.")
 
     def on_previous(idx):
@@ -195,6 +230,7 @@ def build_app(session: AnnotationSession):
     with gr.Blocks(title="Anotação de avaliações", analytics_enabled=False) as app:
         gr.Markdown("## Anotação de avaliações negativas")
         idx_state = gr.State(0)
+        shown_id = gr.State(None)  # avaliação que está na tela; None se a sessão reiniciou
         header = gr.Markdown()
         text = gr.Textbox(label="Avaliação", lines=6, max_lines=20, interactive=False)
         checks = gr.CheckboxGroup(choices=choices, label="Problemas relatados (marque todos)")
@@ -216,8 +252,8 @@ def build_app(session: AnnotationSession):
         with gr.Accordion("Resumo do guia", open=False):
             gr.Markdown(GUIDE_SUMMARY)
 
-        outputs = [idx_state, header, text, checks, revisar, note, status]
-        save_btn.click(on_save, [idx_state, checks, revisar, note], outputs)
+        outputs = [idx_state, shown_id, header, text, checks, revisar, note, status]
+        save_btn.click(on_save, [idx_state, shown_id, checks, revisar, note], outputs)
         prev_btn.click(on_previous, [idx_state], outputs)
         next_btn.click(on_next_pending, [idx_state], outputs)
         goto_btn.click(on_goto, [idx_state, goto_item], outputs)
