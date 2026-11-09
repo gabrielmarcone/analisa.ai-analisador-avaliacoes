@@ -85,3 +85,13 @@ def test_correcao_externa_nao_e_apagada(session):
     saved = load_labels(session.labels_path).set_index("review_id")
     assert saved.loc["a", "nao_recebido"] == 1 and saved.loc["a", "atraso"] == 0
     assert saved.loc["b", "defeito_qualidade"] == 1
+
+
+def test_pagina_desatualizada_nao_grava_no_item_errado(session):
+    # A tela mostrava "b", mas o app achava que estava em "a" (sessão reiniciada).
+    with pytest.raises(ValueError, match="desatualizada"):
+        session.save(0, ["outro"], False, "", expected_review_id="b")
+    assert not session.labels_path.exists()
+    # Com a avaliação certa, grava normalmente.
+    assert session.save(1, ["outro"], False, "", expected_review_id="b") == 2
+    assert load_labels(session.labels_path)["review_id"].tolist() == ["b"]
