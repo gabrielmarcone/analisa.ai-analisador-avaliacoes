@@ -28,3 +28,8 @@ AGREEMENT_QUEUE_FILE = ANNOTATIONS_DIR / "fila_concordancia_v1.csv"
 AGREEMENT_LABELS_FILE = ANNOTATIONS_DIR / "rotulos_concordancia_v1.csv"
 
 REPORTS_DIR = PROJECT_ROOT / "reports"
+FIGURES_DIR = REPORTS_DIR / "figures"
+RESULTS_FILE = REPORTS_DIR / "resultados.json"
+
+# Modelos treinados (pesados, fora do Git).
+MODELS_DIR = PROJECT_ROOT / "models"
