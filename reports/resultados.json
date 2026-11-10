@@ -1,0 +1,210 @@
+{
+  "problemas": {
+    "teste": {
+      "baseline_tfidf": {
+        "avaliacoes_por_segundo": 40590.34610380555,
+        "conjunto_identico": 0.502,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.6781173992099889,
+        "f1_micro": 0.7561461794019934,
+        "hiperparametros": {
+          "C": 4.0,
+          "limiar": 0.5,
+          "min_df": 2,
+          "ngram": "1-2"
+        },
+        "jaccard_medio": 0.6891666666666667,
+        "latencia_ms_por_avaliacao": 0.024636399932205677,
+        "modelo": "TF-IDF + Regressão Logística",
+        "n": 500,
+        "por_classe": {
+          "atendimento": {
+            "f1": 0.7317073170731707,
+            "precisao": 0.7342657342657343,
+            "revocacao": 0.7291666666666666,
+            "suporte": 144
+          },
+          "atraso": {
+            "f1": 0.8076923076923077,
+            "precisao": 0.7777777777777778,
+            "revocacao": 0.84,
+            "suporte": 100
+          },
+          "defeito_qualidade": {
+            "f1": 0.7222222222222222,
+            "precisao": 0.7222222222222222,
+            "revocacao": 0.7222222222222222,
+            "suporte": 90
+          },
+          "incompleto": {
+            "f1": 0.7870967741935484,
+            "precisao": 0.8356164383561644,
+            "revocacao": 0.7439024390243902,
+            "suporte": 82
+          },
+          "nao_recebido": {
+            "f1": 0.8571428571428571,
+            "precisao": 0.8059701492537313,
+            "revocacao": 0.9152542372881356,
+            "suporte": 177
+          },
+          "outro": {
+            "f1": 0.4044943820224719,
+            "precisao": 0.4186046511627907,
+            "revocacao": 0.391304347826087,
+            "suporte": 46
+          },
+          "produto_diferente": {
+            "f1": 0.7395833333333334,
+            "precisao": 0.6893203883495146,
+            "revocacao": 0.797752808988764,
+            "suporte": 89
+          },
+          "sem_reclamacao": {
+            "f1": 0.375,
+            "precisao": 0.42857142857142855,
+            "revocacao": 0.3333333333333333,
+            "suporte": 9
+          }
+        },
+        "registrado_em": "2026-11-10T20:45:14+00:00"
+      }
+    },
+    "validacao": {
+      "baseline_tfidf": {
+        "avaliacoes_por_segundo": 45073.46948563224,
+        "conjunto_identico": 0.544,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.7122718756666401,
+        "f1_micro": 0.7534246575342466,
+        "hiperparametros": {
+          "C": 4.0,
+          "limiar": 0.5,
+          "min_df": 2,
+          "ngram": "1-2"
+        },
+        "jaccard_medio": 0.694,
+        "latencia_ms_por_avaliacao": 0.02218600013293326,
+        "modelo": "TF-IDF + Regressão Logística",
+        "n": 250,
+        "por_classe": {
+          "atendimento": {
+            "f1": 0.7007299270072993,
+            "precisao": 0.7058823529411765,
+            "revocacao": 0.6956521739130435,
+            "suporte": 69
+          },
+          "atraso": {
+            "f1": 0.897196261682243,
+            "precisao": 0.8727272727272727,
+            "revocacao": 0.9230769230769231,
+            "suporte": 52
+          },
+          "defeito_qualidade": {
+            "f1": 0.6804123711340206,
+            "precisao": 0.673469387755102,
+            "revocacao": 0.6875,
+            "suporte": 48
+          },
+          "incompleto": {
+            "f1": 0.8395061728395061,
+            "precisao": 0.8292682926829268,
+            "revocacao": 0.85,
+            "suporte": 40
+          },
+          "nao_recebido": {
+            "f1": 0.8143712574850299,
+            "precisao": 0.7906976744186046,
+            "revocacao": 0.8395061728395061,
+            "suporte": 81
+          },
+          "outro": {
+            "f1": 0.43137254901960786,
+            "precisao": 0.5,
+            "revocacao": 0.3793103448275862,
+            "suporte": 29
+          },
+          "produto_diferente": {
+            "f1": 0.7631578947368421,
+            "precisao": 0.7837837837837838,
+            "revocacao": 0.7435897435897436,
+            "suporte": 39
+          },
+          "sem_reclamacao": {
+            "f1": 0.5714285714285714,
+            "precisao": 0.6666666666666666,
+            "revocacao": 0.5,
+            "suporte": 8
+          }
+        },
+        "registrado_em": "2026-11-10T20:45:14+00:00"
+      }
+    }
+  },
+  "sentimento": {
+    "teste": {
+      "baseline_tfidf": {
+        "acuracia": 0.9407327586206896,
+        "avaliacoes_por_segundo": 65241.73010633381,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.929780319297308,
+        "hiperparametros": {
+          "C": 4.0,
+          "limiar": 0.5,
+          "min_df": 2,
+          "ngram": "1-2"
+        },
+        "latencia_ms_por_avaliacao": 0.015327613145300659,
+        "modelo": "TF-IDF + Regressão Logística",
+        "n": 3712,
+        "por_classe": {
+          "negativa": {
+            "f1": 0.9020480854853072,
+            "precisao": 0.8658119658119658,
+            "revocacao": 0.9414498141263941,
+            "suporte": 1076
+          },
+          "positiva": {
+            "f1": 0.9575125531093086,
+            "precisao": 0.9752163650668765,
+            "revocacao": 0.9404400606980273,
+            "suporte": 2636
+          }
+        },
+        "registrado_em": "2026-11-10T20:44:20+00:00"
+      }
+    },
+    "validacao": {
+      "baseline_tfidf": {
+        "acuracia": 0.9412715517241379,
+        "avaliacoes_por_segundo": 50300.079548712056,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.9306276954962387,
+        "hiperparametros": {
+          "C": 4.0,
+          "limiar": 0.5,
+          "min_df": 2,
+          "ngram": "1-2"
+        },
+        "latencia_ms_por_avaliacao": 0.01988068426475491,
+        "modelo": "TF-IDF + Regressão Logística",
+        "n": 3712,
+        "por_classe": {
+          "negativa": {
+            "f1": 0.9034543844109831,
+            "precisao": 0.8629441624365483,
+            "revocacao": 0.9479553903345725,
+            "suporte": 1076
+          },
+          "positiva": {
+            "f1": 0.9578010065814944,
+            "precisao": 0.9778656126482214,
+            "revocacao": 0.9385432473444613,
+            "suporte": 2636
+          }
+        },
+        "registrado_em": "2026-11-10T20:44:20+00:00"
+      }
+    }
+  }
+}
