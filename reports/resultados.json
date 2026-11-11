@@ -68,6 +68,79 @@
           }
         },
         "registrado_em": "2026-11-10T20:45:14+00:00"
+      },
+      "bertimbau": {
+        "avaliacoes_por_segundo": 8.032389196699212,
+        "conjunto_identico": 0.666,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.6963761494561282,
+        "f1_micro": 0.8272108843537415,
+        "hiperparametros": {
+          "batch_size": 16,
+          "epocas_max": 12,
+          "learning_rate": 3e-05,
+          "limiar": 0.5,
+          "max_length": 128,
+          "melhor_epoca": 7,
+          "modelo_base": "neuralmind/bert-base-portuguese-cased"
+        },
+        "jaccard_medio": 0.7808999999999999,
+        "latencia_gpu_ms_por_avaliacao": 1.251565649999975,
+        "latencia_medida_em": "CPU, 200 avaliações em lotes de 32",
+        "latencia_ms_por_avaliacao": 124.49595948499791,
+        "modelo": "BERTimbau ajustado",
+        "n": 500,
+        "por_classe": {
+          "atendimento": {
+            "f1": 0.8316151202749141,
+            "precisao": 0.8231292517006803,
+            "revocacao": 0.8402777777777778,
+            "suporte": 144
+          },
+          "atraso": {
+            "f1": 0.8942307692307693,
+            "precisao": 0.8611111111111112,
+            "revocacao": 0.93,
+            "suporte": 100
+          },
+          "defeito_qualidade": {
+            "f1": 0.8070175438596491,
+            "precisao": 0.8518518518518519,
+            "revocacao": 0.7666666666666667,
+            "suporte": 90
+          },
+          "incompleto": {
+            "f1": 0.8571428571428571,
+            "precisao": 0.9166666666666666,
+            "revocacao": 0.8048780487804879,
+            "suporte": 82
+          },
+          "nao_recebido": {
+            "f1": 0.8806366047745358,
+            "precisao": 0.83,
+            "revocacao": 0.9378531073446328,
+            "suporte": 177
+          },
+          "outro": {
+            "f1": 0.48717948717948717,
+            "precisao": 0.59375,
+            "revocacao": 0.41304347826086957,
+            "suporte": 46
+          },
+          "produto_diferente": {
+            "f1": 0.8131868131868132,
+            "precisao": 0.7956989247311828,
+            "revocacao": 0.8314606741573034,
+            "suporte": 89
+          },
+          "sem_reclamacao": {
+            "f1": 0.0,
+            "precisao": 0.0,
+            "revocacao": 0.0,
+            "suporte": 9
+          }
+        },
+        "registrado_em": "2026-11-11T23:13:46+00:00"
       }
     },
     "validacao": {
@@ -138,6 +211,79 @@
           }
         },
         "registrado_em": "2026-11-10T20:45:14+00:00"
+      },
+      "bertimbau": {
+        "avaliacoes_por_segundo": 8.032389196699212,
+        "conjunto_identico": 0.66,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.6770088729233074,
+        "f1_micro": 0.8083333333333333,
+        "hiperparametros": {
+          "batch_size": 16,
+          "epocas_max": 12,
+          "learning_rate": 3e-05,
+          "limiar": 0.5,
+          "max_length": 128,
+          "melhor_epoca": 7,
+          "modelo_base": "neuralmind/bert-base-portuguese-cased"
+        },
+        "jaccard_medio": 0.7653333333333334,
+        "latencia_gpu_ms_por_avaliacao": 1.481380444000024,
+        "latencia_medida_em": "CPU, 200 avaliações em lotes de 32",
+        "latencia_ms_por_avaliacao": 124.49595948499791,
+        "modelo": "BERTimbau ajustado",
+        "n": 250,
+        "por_classe": {
+          "atendimento": {
+            "f1": 0.8695652173913043,
+            "precisao": 0.8695652173913043,
+            "revocacao": 0.8695652173913043,
+            "suporte": 69
+          },
+          "atraso": {
+            "f1": 0.8627450980392157,
+            "precisao": 0.88,
+            "revocacao": 0.8461538461538461,
+            "suporte": 52
+          },
+          "defeito_qualidade": {
+            "f1": 0.8080808080808081,
+            "precisao": 0.7843137254901961,
+            "revocacao": 0.8333333333333334,
+            "suporte": 48
+          },
+          "incompleto": {
+            "f1": 0.8641975308641975,
+            "precisao": 0.8536585365853658,
+            "revocacao": 0.875,
+            "suporte": 40
+          },
+          "nao_recebido": {
+            "f1": 0.8538011695906432,
+            "precisao": 0.8111111111111111,
+            "revocacao": 0.9012345679012346,
+            "suporte": 81
+          },
+          "outro": {
+            "f1": 0.30434782608695654,
+            "precisao": 0.4117647058823529,
+            "revocacao": 0.2413793103448276,
+            "suporte": 29
+          },
+          "produto_diferente": {
+            "f1": 0.8533333333333334,
+            "precisao": 0.8888888888888888,
+            "revocacao": 0.8205128205128205,
+            "suporte": 39
+          },
+          "sem_reclamacao": {
+            "f1": 0.0,
+            "precisao": 0.0,
+            "revocacao": 0.0,
+            "suporte": 8
+          }
+        },
+        "registrado_em": "2026-11-11T23:13:46+00:00"
       }
     }
   },
@@ -172,6 +318,41 @@
           }
         },
         "registrado_em": "2026-11-10T20:44:20+00:00"
+      },
+      "bertimbau": {
+        "acuracia": 0.9563577586206896,
+        "avaliacoes_por_segundo": 10.616164260836813,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.9469964066316543,
+        "hiperparametros": {
+          "batch_size": 32,
+          "epocas_max": 3,
+          "learning_rate": 2e-05,
+          "limiar": null,
+          "max_length": 128,
+          "melhor_epoca": 2,
+          "modelo_base": "neuralmind/bert-base-portuguese-cased"
+        },
+        "latencia_gpu_ms_por_avaliacao": 0.9902553973599125,
+        "latencia_medida_em": "CPU, 200 avaliações em lotes de 32",
+        "latencia_ms_por_avaliacao": 94.19598034000046,
+        "modelo": "BERTimbau ajustado",
+        "n": 3712,
+        "por_classe": {
+          "negativa": {
+            "f1": 0.9247211895910781,
+            "precisao": 0.9247211895910781,
+            "revocacao": 0.9247211895910781,
+            "suporte": 1076
+          },
+          "positiva": {
+            "f1": 0.9692716236722306,
+            "precisao": 0.9692716236722306,
+            "revocacao": 0.9692716236722306,
+            "suporte": 2636
+          }
+        },
+        "registrado_em": "2026-11-11T23:07:23+00:00"
       }
     },
     "validacao": {
@@ -204,6 +385,41 @@
           }
         },
         "registrado_em": "2026-11-10T20:44:20+00:00"
+      },
+      "bertimbau": {
+        "acuracia": 0.9571659482758621,
+        "avaliacoes_por_segundo": 10.616164260836813,
+        "custo_usd_por_1000": 0.0,
+        "f1_macro": 0.9475854045713398,
+        "hiperparametros": {
+          "batch_size": 32,
+          "epocas_max": 3,
+          "learning_rate": 2e-05,
+          "limiar": null,
+          "max_length": 128,
+          "melhor_epoca": 2,
+          "modelo_base": "neuralmind/bert-base-portuguese-cased"
+        },
+        "latencia_gpu_ms_por_avaliacao": 0.9519352403017933,
+        "latencia_medida_em": "CPU, 200 avaliações em lotes de 32",
+        "latencia_ms_por_avaliacao": 94.19598034000046,
+        "modelo": "BERTimbau ajustado",
+        "n": 3712,
+        "por_classe": {
+          "negativa": {
+            "f1": 0.9251764705882353,
+            "precisao": 0.9370829361296473,
+            "revocacao": 0.9135687732342007,
+            "suporte": 1076
+          },
+          "positiva": {
+            "f1": 0.9699943385544443,
+            "precisao": 0.9650769808486669,
+            "revocacao": 0.9749620637329287,
+            "suporte": 2636
+          }
+        },
+        "registrado_em": "2026-11-11T23:07:23+00:00"
       }
     }
   }

@@ -8,21 +8,25 @@ para atualizar, rode as avaliações de cada modelo.
 | Modelo | F1 macro | Latência (ms/aval.) | Custo (US$/1.000) | n |
 |---|---:|---:|---:|---:|
 | TF-IDF + Regressão Logística | 0,712 | 0,02 | 0,00 | 250 |
+| BERTimbau ajustado | 0,677 | 124,50 | 0,00 | 250 |
 
 ## problemas · teste
 
 | Modelo | F1 macro | Latência (ms/aval.) | Custo (US$/1.000) | n |
 |---|---:|---:|---:|---:|
+| BERTimbau ajustado | 0,696 | 124,50 | 0,00 | 500 |
 | TF-IDF + Regressão Logística | 0,678 | 0,02 | 0,00 | 500 |
 
 ## sentimento · validacao
 
 | Modelo | F1 macro | Latência (ms/aval.) | Custo (US$/1.000) | n |
 |---|---:|---:|---:|---:|
+| BERTimbau ajustado | 0,948 | 94,20 | 0,00 | 3712 |
 | TF-IDF + Regressão Logística | 0,931 | 0,02 | 0,00 | 3712 |
 
 ## sentimento · teste
 
 | Modelo | F1 macro | Latência (ms/aval.) | Custo (US$/1.000) | n |
 |---|---:|---:|---:|---:|
+| BERTimbau ajustado | 0,947 | 94,20 | 0,00 | 3712 |
 | TF-IDF + Regressão Logística | 0,930 | 0,02 | 0,00 | 3712 |
