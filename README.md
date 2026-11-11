@@ -66,17 +66,39 @@ e LLM) entram na mesma tabela, medidos pelas mesmas funções de `evaluate.py`.
 
 Teste (medido uma vez por modelo):
 
-| Tarefa | Modelo | F1 macro | Latência (ms/aval.) | Custo (US$/1.000) |
-|---|---|---:|---:|---:|
-| Sentimento (binário, 3.712 aval.) | TF-IDF + Regressão Logística | 0,930 | 0,02 | 0,00 |
-| Tipo de problema (multirrótulo, 500 aval.) | TF-IDF + Regressão Logística | 0,678 | 0,02 | 0,00 |
+| Tarefa | Modelo | F1 macro | F1 micro | Latência CPU (ms/aval.) | Custo (US$/1.000) |
+|---|---|---:|---:|---:|---:|
+| Sentimento (binário, 3.712 aval.) | TF-IDF + Regressão Logística | 0,930 | – | 0,02 | 0,00 |
+| | BERTimbau ajustado | **0,947** | – | 94 | 0,00 |
+| Tipo de problema (multirrótulo, 500 aval.) | TF-IDF + Regressão Logística | 0,678 | 0,756 | 0,02 | 0,00 |
+| | BERTimbau ajustado | **0,696** | **0,827** | 125 | 0,00 |
 
-No tipo de problema, o baseline vai bem nas categorias de entrega (não recebido 0,86;
-atraso 0,81; pedido incompleto 0,79) e mal nas que dependem de interpretação ou têm
-poucos exemplos (outro 0,40; sem reclamação 0,38). A curva de aprendizado
+Modelos publicados no Hugging Face Hub:
+[`gmarconems/bertimbau-olist-sentimento`](https://huggingface.co/gmarconems/bertimbau-olist-sentimento) e
+[`gmarconems/bertimbau-olist-problemas`](https://huggingface.co/gmarconems/bertimbau-olist-problemas).
+
+**Sentimento.** O BERTimbau reduz os erros em cerca de um quarto (acurácia de 94,1% para
+95,6%), com o maior ganho nas negativas (F1 0,90 → 0,92). Validação e teste quase iguais
+(0,948 e 0,947); a melhor época foi a 2 de 3.
+
+**Tipo de problema.** O BERTimbau é melhor em 7 das 8 categorias no teste, com ganhos de
+2 a 10 pontos (atendimento 0,73 → 0,83; atraso 0,81 → 0,89; defeito 0,72 → 0,81), e acerta
+o conjunto exato de rótulos em 67% das avaliações, contra 50% do baseline. Mas nunca
+prevê **"sem reclamação"**, que tem só 14 exemplos no treino; como a F1 macro dá o mesmo
+peso às 8 categorias, esse zero sozinho tira cerca de 0,05 da média. Na validação
+(250 avaliações, só 8 "sem reclamação"), o baseline chega a ganhar na F1 macro
+(0,712 × 0,677), embora o BERTimbau também lidere a F1 micro (0,753 × 0,808).
+Corrigir a classe rara (peso maior na perda ou limiar por categoria escolhido na
+validação) fica registrado como próximo passo, e não foi feito agora para não medir o
+teste duas vezes.
+
+**Custo.** Em CPU o BERTimbau é milhares de vezes mais lento que o TF-IDF (medido na
+CPU do Colab; em GPU, cerca de 1 ms por avaliação). Para triagem em grande volume, o
+baseline ainda é competitivo; para relatórios por vendedor, a qualidade compensa.
+
+A curva de aprendizado do baseline
 ([`reports/figures/curva_aprendizado.png`](reports/figures/curva_aprendizado.png))
-ainda sobe com 750 exemplos: mais anotação ajudaria, mas o próximo ganho deve vir
-de um modelo que entenda contexto.
+ainda sobe com 750 exemplos: mais anotação ajudaria os dois modelos.
 
 ## Dados
 
