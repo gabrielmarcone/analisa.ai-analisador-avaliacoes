@@ -58,6 +58,30 @@ python -m reviews.bert publicar --usuario SEU_USUARIO_HF   # token na variável 
 
 A validação escolhe a melhor época (parada antecipada); o teste é medido uma vez.
 
+### LLM zero-shot (Fase 5)
+
+O Claude Haiku 5.5 classifica as avaliações **sem treino nenhum**: recebe só a definição
+da tarefa e, nos tipos de problema, as categorias e regras do guia de anotação, sem
+nenhum exemplo rotulado. As avaliações vão em lotes de 25 por chamada, com saída em
+JSON validada por esquema.
+
+```bash
+# uma vez: copie .env.example para .env e preencha ANTHROPIC_API_KEY (o .env não vai para o Git)
+python -m reviews.llm verificar                         # testa a chave (custo ~US$ 0,0001)
+python -m reviews.llm problemas --simular               # mostra o plano, sem chamar a API
+python -m reviews.llm problemas --esforco low           # validação
+python -m reviews.llm problemas --esforco medium        # validação, outro esforço
+python -m reviews.llm problemas --esforco low --teste   # teste, com o esforço escolhido
+```
+
+- O **esforço de raciocínio** (`low`, `medium`, `high`) é escolhido na validação; toda
+  execução fica registrada em `reports/llm_execucoes.csv`, inclusive as descartadas.
+- Depois que o teste é medido, medi-lo de novo com outra configuração é bloqueado.
+- Cada resposta da API vai para `data/llm_cache/` (fora do Git): se a execução cair,
+  rodar de novo continua de onde parou, sem pagar outra vez.
+- O custo é calculado a partir dos tokens que a API informa como cobrados, e há uma trava
+  de gasto por execução (`--limite-usd`, padrão US$ 2).
+
 ### Resultados
 
 Os números ficam em [`reports/resultados.md`](reports/resultados.md), acumulados por
@@ -123,12 +147,14 @@ ainda sobe com 750 exemplos: mais anotação ajudaria os dois modelos.
 | Hiperparâmetros escolhidos na validação; teste medido uma vez por modelo | O teste nunca orienta ajustes, senão a comparação final ficaria viciada. |
 | Multirrótulo: limiar 0,5; sem rótulo acima dele, fica o mais provável; "sem reclamação" nunca acompanha outro | Segue as regras do guia de anotação; toda avaliação tem ao menos um rótulo. |
 | BERTimbau com hiperparâmetros fixos; a validação só escolhe a melhor época | Sem busca de hiperparâmetros, a validação não vira um segundo treino. |
+| LLM zero-shot com as regras do guia, mas sem nenhum exemplo rotulado | É o mesmo critério que o anotador seguiu; exemplos tornariam o teste "few-shot". |
+| LLM classifica em lotes de 25 com saída em JSON validada | 25 vezes menos chamadas, e as instruções são pagas uma vez por lote; resposta fora do formato é refeita, e o que falhar fica contado. |
 | Latência dos modelos locais medida em CPU | É o hardware da demo; a latência em GPU do BERTimbau fica registrada à parte. |
 
 ## Estrutura
 
 ```
-src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau)
+src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM)
 docs/             guia de anotação
 annotations/      fila e rótulos da anotação (só IDs, sem texto)
 notebooks/        análise exploratória (01) e treino do BERTimbau no Colab (02)
