@@ -1,0 +1,5 @@
+# Fase 4 (BERTimbau). Usado pelo notebook do Colab, que já vem com PyTorch e GPU.
+# Para rodar fora do Colab, instale antes o PyTorch adequado à sua máquina (pytorch.org).
+transformers>=4.46,<6
+accelerate>=1.1
+huggingface_hub>=0.26
