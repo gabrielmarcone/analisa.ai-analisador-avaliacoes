@@ -98,15 +98,58 @@ python -m reviews.agent relatorio --top 3             # gera os relatórios em r
 - **Dados primeiro, texto depois.** Os números vêm de funções em pandas
   (`src/reviews/sellers.py`); o Claude Haiku 5.5 só os consulta como ferramentas e
   escreve o texto.
-- **Tipos de problema** das negativas do vendedor: classificador da Fase 5 (melhor
-  modelo nessa tarefa), com o mesmo cache. A referência do marketplace são as 1500
-  negativas anotadas à mão.
+- **Cada número na base certa.** Nota, % de negativas, comparação com o marketplace e
+  evolução usam todas as avaliações, com ou sem comentário; o atraso usa todos os
+  pedidos entregues; só os tipos de problema ficam nas negativas com comentário, as
+  únicas com texto. Medir tudo só nas comentadas distorceria o retrato: quem está
+  insatisfeito escreve mais (no marketplace, 25,0% de negativas entre as comentadas
+  contra 13,7% no total; atraso de 9,8% contra 6,9% dos pedidos).
+- **Tipos de problema** das negativas com comentário do vendedor: classificador da
+  Fase 5 (melhor modelo nessa tarefa), com o mesmo cache. A referência do marketplace é
+  o mesmo classificador aplicado às 1500 negativas sorteadas do projeto: vendedor e
+  marketplace medidos com a mesma régua (comparar rótulos do LLM com rótulos humanos
+  inflaria, por exemplo, "outro problema", que o LLM marca um pouco mais que a
+  anotação).
 - **Verificação automática:** cada número do relatório é conferido com o que as
-  ferramentas devolveram; se algum não bater, o agente reescreve uma vez, e o que
+  ferramentas devolveram; cada citação entre aspas, com o texto original da
+  avaliação; cada frase que aponta "o problema mais citado", com a contagem; e cada
+  recomendação sobre um tipo de problema, que precisa estar entre os 3 mais citados ou
+  2 pontos acima da referência. Se algo não bater, o agente reescreve uma vez, e o que
   sobrar fica marcado no próprio relatório. Cada relatório vem com um arquivo
-  `_ferramentas.json` que registra todas as consultas, para auditoria.
+  `_ferramentas.json` que registra todas as consultas e os motivos de cada reescrita,
+  para auditoria.
+- **Comparações prontas:** ranking dos problemas, pior e melhor mês, últimos 3 meses
+  contra os 3 anteriores e a relação entre volume e negativas (correlação de Spearman)
+  vêm calculados das ferramentas, porque um LLM lendo uma tabela de meses erra esse
+  tipo de comparação.
 - Limite de chamadas e de gasto por relatório; os textos das avaliações entram como
   dados, nunca como instruções.
+
+Relatórios gerados (os três vendedores com mais avaliações negativas; no marketplace,
+13,7% das avaliações são negativas):
+
+| Vendedor | Categoria principal | Avaliações | Negativas | Problema mais citado nas negativas com comentário |
+|---|---|---:|---:|---|
+| [`4a3ca931`](reports/relatorios/vendedor_4a3ca931.md) | cama, mesa e banho | 1685 | 17,9% | Não recebido (36,4%) |
+| [`6560211a`](reports/relatorios/vendedor_6560211a.md) | relógios e presentes | 1802 | 16,6% | Defeito ou má qualidade (37,1%) |
+| [`cc419e06`](reports/relatorios/vendedor_cc419e06.md) | beleza e saúde | 1683 | 14,7% | Não recebido (35,6%) |
+
+Cada relatório custou entre US$ 0,014 e US$ 0,018 para gerar do zero (classificação das
+negativas e agente); a referência do marketplace custou US$ 0,08 uma vez e serve a todos.
+O custo de cada um está na seção "Como este relatório foi feito".
+
+O verificador garante números, citações, o "mais citado" e o apoio das recomendações
+sobre tipos de problema, não toda a interpretação: a redação ainda pode simplificar uma
+comparação, dar peso demais a um único exemplo ou sugerir uma causa que os dados não
+medem. Por isso os relatórios publicados aqui foram lidos por uma pessoa antes de entrar
+no repositório. As leituras das versões anteriores encontraram comparações erradas entre
+meses, um "segundo problema mais citado" trocado, recomendações tiradas de um único
+comentário ou de um problema no mesmo patamar do marketplace, uma referência medida com
+outra régua, nota e atraso medidos só nas avaliações com comentário e um verificador que
+marcava como erro um "terceiro mais citado" correto; cada tipo de erro virou uma
+correção no código (comparações prontas, verificações automáticas, referência pelo mesmo
+classificador, a base certa para cada número e regras no prompt), e não uma edição
+manual do texto.
 
 ### Resultados
 
@@ -184,7 +227,7 @@ O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados
 
 | Decisão | Motivo |
 |---|---|
-| Só avaliações com comentário | Sem texto não há o que classificar. |
+| Classificadores e anotação só com avaliações com comentário | Sem texto não há o que classificar. |
 | Sentimento pela nota: 1–2 negativa, 4–5 positiva, 3 neutra | A nota 3 mistura elogio e reclamação; fica fora da tarefa binária. |
 | Métrica principal: F1 macro | As positivas dominam; acurácia premiaria chutar sempre "positiva". |
 | Texto limpo de forma conservadora (mantém maiúsculas, acentos e pontuação) | O BERTimbau é *cased* e aproveita essas pistas. |
@@ -205,6 +248,7 @@ O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados
 | Relatórios: números calculados em pandas; o LLM só consulta e escreve | Um modelo de linguagem não deve fazer contas; assim cada número tem origem rastreável. |
 | Cada número do relatório é conferido automaticamente com as ferramentas | Impede números inventados ("alucinação"); o que não bater fica marcado. |
 | Relatório por vendedor só com pedidos de um único vendedor | Num pedido com vários vendedores, a avaliação não diz de quem é a culpa. |
+| Relatórios: nota e negativas sobre todas as avaliações; atraso sobre todos os pedidos entregues | Só 41% das avaliações têm comentário, e quem está insatisfeito escreve mais; medir tudo nas comentadas mostraria vendedores e marketplace piores do que são. |
 
 ## Estrutura
 

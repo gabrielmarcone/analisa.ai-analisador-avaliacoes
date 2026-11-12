@@ -1,0 +1,468 @@
+{
+  "vendedor": "6560211a19b47992c3666cc44a7e94c0",
+  "gerado_em": "2026-11-12",
+  "modelo": "claude-haiku-5-5",
+  "esforco": "medium",
+  "chamadas": 3,
+  "reescritas": 0,
+  "motivos_das_reescritas": [],
+  "numeros_conferidos": 109,
+  "numeros_sem_fonte": [],
+  "citacoes_sem_fonte": [],
+  "rankings_errados": [],
+  "recomendacoes_sem_apoio": [],
+  "custo_usd": {
+    "classificacao": 0.011976,
+    "agente": 0.003159,
+    "total": 0.015135,
+    "gasto_nesta_execucao": 0.003159
+  },
+  "tokens": {
+    "input_tokens": 9838,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 8553,
+    "output_tokens": 4179,
+    "thinking_tokens": 1551
+  },
+  "ferramentas": [
+    {
+      "ferramenta": "resumo_vendedor",
+      "entrada": {},
+      "saida": {
+        "vendedor": "6560211a19b47992c3666cc44a7e94c0",
+        "cidade": "sao paulo",
+        "estado": "SP",
+        "base": "todas as avaliações do vendedor, com ou sem comentário",
+        "avaliacoes": 1802,
+        "nota_media": 3.96,
+        "pct_negativas": 16.6,
+        "pct_neutras": 10.6,
+        "pct_positivas": 72.8,
+        "avaliacoes_negativas": 299,
+        "avaliacoes_com_comentario": 835,
+        "negativas_com_comentario": 229,
+        "primeiro_mes": "2017-02",
+        "ultimo_mes": "2018-08",
+        "categorias_principais": [
+          {
+            "categoria": "relogios presentes",
+            "avaliacoes": 1425,
+            "pct": 79.1
+          },
+          {
+            "categoria": "fashion bolsas e acessorios",
+            "avaliacoes": 316,
+            "pct": 17.5
+          },
+          {
+            "categoria": "audio",
+            "avaliacoes": 30,
+            "pct": 1.7
+          },
+          {
+            "categoria": "informatica acessorios",
+            "avaliacoes": 12,
+            "pct": 0.7
+          },
+          {
+            "categoria": "perfumaria",
+            "avaliacoes": 11,
+            "pct": 0.6
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "comparar_com_marketplace",
+      "entrada": {},
+      "saida": {
+        "base": "todas as avaliações, com ou sem comentário",
+        "nota_media_vendedor": 3.96,
+        "nota_media_marketplace": 4.12,
+        "diferenca_nota": -0.16,
+        "pct_negativas_vendedor": 16.6,
+        "pct_negativas_marketplace": 13.7,
+        "diferenca_pontos_percentuais": 2.9,
+        "vendedores_comparaveis": 619,
+        "minimo_de_avaliacoes_para_comparar": 30,
+        "pct_vendedores_com_menos_negativas": 74.6,
+        "mesmas_categorias": [
+          {
+            "categoria": "relogios presentes",
+            "avaliacoes_vendedor": 1425,
+            "pct_negativas_vendedor": 17.5,
+            "pct_negativas_marketplace": 14.6,
+            "diferenca_pontos_percentuais": 2.9
+          },
+          {
+            "categoria": "fashion bolsas e acessorios",
+            "avaliacoes_vendedor": 316,
+            "pct_negativas_vendedor": 12.3,
+            "pct_negativas_marketplace": 11.0,
+            "diferenca_pontos_percentuais": 1.3
+          },
+          {
+            "categoria": "audio",
+            "avaliacoes_vendedor": 30,
+            "pct_negativas_vendedor": 23.3,
+            "pct_negativas_marketplace": 21.9,
+            "diferenca_pontos_percentuais": 1.4
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "entregas",
+      "entrada": {},
+      "saida": {
+        "atraso_nos_pedidos": {
+          "base": "todos os pedidos entregues, com ou sem avaliação",
+          "vendedor": {
+            "pedidos_entregues": 1788,
+            "pedidos_com_atraso": 95,
+            "pct_com_atraso": 5.3,
+            "mediana_dias_de_atraso": 5.0
+          },
+          "marketplace": {
+            "pedidos_entregues": 95201,
+            "pedidos_com_atraso": 6522,
+            "pct_com_atraso": 6.9,
+            "mediana_dias_de_atraso": 7.0
+          },
+          "diferenca_pct_com_atraso_pontos_percentuais": -1.6
+        },
+        "notas_com_e_sem_atraso": {
+          "base": "avaliações de pedidos entregues, com ou sem comentário",
+          "vendedor": {
+            "avaliacoes_com_atraso": 94,
+            "avaliacoes_no_prazo": 1675,
+            "nota_media_com_atraso": 2.41,
+            "nota_media_no_prazo": 4.09,
+            "pct_negativas_com_atraso": 55.3,
+            "pct_negativas_no_prazo": 13.1
+          },
+          "marketplace": {
+            "avaliacoes_com_atraso": 6347,
+            "avaliacoes_no_prazo": 87999,
+            "nota_media_com_atraso": 2.27,
+            "nota_media_no_prazo": 4.31,
+            "pct_negativas_com_atraso": 62.4,
+            "pct_negativas_no_prazo": 8.7
+          },
+          "diferenca_nota_com_atraso": 0.14,
+          "diferenca_nota_no_prazo": -0.22,
+          "diferenca_pct_negativas_com_atraso_pontos_percentuais": -7.1,
+          "diferenca_pct_negativas_no_prazo_pontos_percentuais": 4.4
+        },
+        "avaliacoes_de_pedidos_nao_entregues": 33
+      }
+    },
+    {
+      "ferramenta": "evolucao_mensal",
+      "entrada": {},
+      "saida": {
+        "base": "todas as avaliações do vendedor, com ou sem comentário",
+        "meses": [
+          {
+            "mes": "2017-02",
+            "avaliacoes": 1,
+            "pct_negativas": 0.0,
+            "nota_media": 5.0
+          },
+          {
+            "mes": "2017-03",
+            "avaliacoes": 38,
+            "pct_negativas": 7.9,
+            "nota_media": 4.32
+          },
+          {
+            "mes": "2017-04",
+            "avaliacoes": 33,
+            "pct_negativas": 9.1,
+            "nota_media": 4.0
+          },
+          {
+            "mes": "2017-05",
+            "avaliacoes": 54,
+            "pct_negativas": 25.9,
+            "nota_media": 3.81
+          },
+          {
+            "mes": "2017-06",
+            "avaliacoes": 59,
+            "pct_negativas": 15.3,
+            "nota_media": 3.81
+          },
+          {
+            "mes": "2017-07",
+            "avaliacoes": 65,
+            "pct_negativas": 20.0,
+            "nota_media": 3.97
+          },
+          {
+            "mes": "2017-08",
+            "avaliacoes": 82,
+            "pct_negativas": 13.4,
+            "nota_media": 4.16
+          },
+          {
+            "mes": "2017-09",
+            "avaliacoes": 101,
+            "pct_negativas": 13.9,
+            "nota_media": 4.12
+          },
+          {
+            "mes": "2017-10",
+            "avaliacoes": 86,
+            "pct_negativas": 12.8,
+            "nota_media": 4.09
+          },
+          {
+            "mes": "2017-11",
+            "avaliacoes": 137,
+            "pct_negativas": 18.2,
+            "nota_media": 3.77
+          },
+          {
+            "mes": "2017-12",
+            "avaliacoes": 138,
+            "pct_negativas": 17.4,
+            "nota_media": 4.0
+          },
+          {
+            "mes": "2018-01",
+            "avaliacoes": 107,
+            "pct_negativas": 14.0,
+            "nota_media": 3.99
+          },
+          {
+            "mes": "2018-02",
+            "avaliacoes": 77,
+            "pct_negativas": 14.3,
+            "nota_media": 3.92
+          },
+          {
+            "mes": "2018-03",
+            "avaliacoes": 72,
+            "pct_negativas": 27.8,
+            "nota_media": 3.71
+          },
+          {
+            "mes": "2018-04",
+            "avaliacoes": 71,
+            "pct_negativas": 25.4,
+            "nota_media": 3.72
+          },
+          {
+            "mes": "2018-05",
+            "avaliacoes": 111,
+            "pct_negativas": 12.6,
+            "nota_media": 4.2
+          },
+          {
+            "mes": "2018-06",
+            "avaliacoes": 157,
+            "pct_negativas": 14.6,
+            "nota_media": 4.01
+          },
+          {
+            "mes": "2018-07",
+            "avaliacoes": 150,
+            "pct_negativas": 16.0,
+            "nota_media": 3.99
+          },
+          {
+            "mes": "2018-08",
+            "avaliacoes": 263,
+            "pct_negativas": 17.9,
+            "nota_media": 3.86
+          }
+        ],
+        "relacao_volume_negativas": {
+          "meses_usados": 18,
+          "correlacao_spearman": 0.09,
+          "leitura": "sem relação clara: o volume do mês não acompanha a proporção de negativas",
+          "cuidado": "correlação não mostra causa"
+        },
+        "minimo_de_avaliacoes_para_mes_relevante": 20,
+        "meses_relevantes": 18,
+        "mes_com_mais_negativas": {
+          "mes": "2018-03",
+          "avaliacoes": 72,
+          "pct_negativas": 27.8,
+          "nota_media": 3.71
+        },
+        "mes_com_menos_negativas": {
+          "mes": "2017-03",
+          "avaliacoes": 38,
+          "pct_negativas": 7.9,
+          "nota_media": 4.32
+        },
+        "mes_com_mais_avaliacoes": {
+          "mes": "2018-08",
+          "avaliacoes": 263,
+          "pct_negativas": 17.9,
+          "nota_media": 3.86
+        },
+        "tendencia": {
+          "ultimos_3_meses": {
+            "meses": [
+              "2018-06",
+              "2018-07",
+              "2018-08"
+            ],
+            "avaliacoes": 570,
+            "pct_negativas": 16.5,
+            "nota_media": 3.94
+          },
+          "3_meses_anteriores": {
+            "meses": [
+              "2018-03",
+              "2018-04",
+              "2018-05"
+            ],
+            "avaliacoes": 254,
+            "pct_negativas": 20.5,
+            "nota_media": 3.93
+          },
+          "diferenca_pct_negativas_pontos_percentuais": -4.0,
+          "diferenca_nota": 0.01
+        },
+        "observacao": "meses com menos avaliações que o mínimo oscilam muito e ficam fora de mes_com_mais_negativas e mes_com_menos_negativas; a tendência usa todos os meses"
+      }
+    },
+    {
+      "ferramenta": "problemas_relatados",
+      "entrada": {},
+      "saida": {
+        "base": "só as avaliações negativas com comentário, as únicas com texto para classificar",
+        "avaliacoes_negativas_classificadas": 229,
+        "ordem": "da categoria mais citada para a menos citada (campo posicao)",
+        "referencia_marketplace": "o mesmo classificador aplicado às 1500 avaliações negativas com comentário sorteadas do marketplace (as mesmas anotadas à mão no projeto)",
+        "observacao": "uma avaliação pode ter mais de um tipo de problema",
+        "categorias": [
+          {
+            "categoria": "defeito_qualidade",
+            "nome": "Defeito, avaria ou má qualidade",
+            "avaliacoes": 85,
+            "pct_das_negativas_com_comentario": 37.1,
+            "pct_referencia_marketplace": 17.1,
+            "diferenca_pontos_percentuais": 20.0,
+            "posicao": 1
+          },
+          {
+            "categoria": "atendimento",
+            "nome": "Atendimento, cancelamento ou reembolso",
+            "avaliacoes": 56,
+            "pct_das_negativas_com_comentario": 24.5,
+            "pct_referencia_marketplace": 27.7,
+            "diferenca_pontos_percentuais": -3.2,
+            "posicao": 2
+          },
+          {
+            "categoria": "nao_recebido",
+            "nome": "Não recebido",
+            "avaliacoes": 50,
+            "pct_das_negativas_com_comentario": 21.8,
+            "pct_referencia_marketplace": 35.5,
+            "diferenca_pontos_percentuais": -13.7,
+            "posicao": 3
+          },
+          {
+            "categoria": "outro",
+            "nome": "Outro problema",
+            "avaliacoes": 46,
+            "pct_das_negativas_com_comentario": 20.1,
+            "pct_referencia_marketplace": 12.5,
+            "diferenca_pontos_percentuais": 7.6,
+            "posicao": 4
+          },
+          {
+            "categoria": "produto_diferente",
+            "nome": "Produto errado ou diferente",
+            "avaliacoes": 36,
+            "pct_das_negativas_com_comentario": 15.7,
+            "pct_referencia_marketplace": 17.5,
+            "diferenca_pontos_percentuais": -1.8,
+            "posicao": 5
+          },
+          {
+            "categoria": "atraso",
+            "nome": "Atraso na entrega",
+            "avaliacoes": 24,
+            "pct_das_negativas_com_comentario": 10.5,
+            "pct_referencia_marketplace": 18.7,
+            "diferenca_pontos_percentuais": -8.2,
+            "posicao": 6
+          },
+          {
+            "categoria": "incompleto",
+            "nome": "Pedido incompleto",
+            "avaliacoes": 21,
+            "pct_das_negativas_com_comentario": 9.2,
+            "pct_referencia_marketplace": 16.6,
+            "diferenca_pontos_percentuais": -7.4,
+            "posicao": 7
+          },
+          {
+            "categoria": "sem_reclamacao",
+            "nome": "Sem reclamação no texto",
+            "avaliacoes": 13,
+            "pct_das_negativas_com_comentario": 5.7,
+            "pct_referencia_marketplace": 2.4,
+            "diferenca_pontos_percentuais": 3.3,
+            "posicao": 8
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "exemplos_avaliacoes",
+      "entrada": {
+        "categoria": "defeito_qualidade",
+        "quantidade": 2
+      },
+      "saida": {
+        "categoria": "defeito_qualidade",
+        "nome": "Defeito, avaria ou má qualidade",
+        "total": 85,
+        "exemplos": [
+          {
+            "texto": "Péssima qualidade. Quero aqui dizer que sou cliente de muito tempo da stark e compro muito...Mais nunca tinha comprado um produto de tão péssima qualidade como esse...Quero aqui dizer que o produto vai pra lixo...",
+            "nota": 1,
+            "mes": "2018-08"
+          },
+          {
+            "texto": "Apesar da entrega rápida, o produto é de má qualidade. Trata-se de um relógio 3em 1 (relógio, bússola e termômetro), mas a bússola não funciona...",
+            "nota": 1,
+            "mes": "2017-03"
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "exemplos_avaliacoes",
+      "entrada": {
+        "categoria": "outro",
+        "quantidade": 2
+      },
+      "saida": {
+        "categoria": "outro",
+        "nome": "Outro problema",
+        "total": 46,
+        "exemplos": [
+          {
+            "texto": "Nota Fiscal. O produto é bom porém a nota fiscal veio com o nome da pessoa que recebeu sendo que o pedido foi feito em meu cpf. Caso precise trocar ou fazer alguma coisa não vou poder porque está em outro nome",
+            "nota": 2,
+            "mes": "2018-07"
+          },
+          {
+            "texto": "Segunda compra que faço através do app e pago um frete absurdo para o produto não ser entregue em casa. Comecei a fazer compras online pela comodidade de receber em casa e tenho que retirar nos correi",
+            "nota": 1,
+            "mes": "2018-03"
+          }
+        ]
+      }
+    }
+  ]
+}
