@@ -20,8 +20,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from reviews.annotation import CATEGORIES, LABELS, load_labels
-from reviews.paths import LABELS_FILE, PROCESSED_REVIEWS_FILE, RAW_DIR
+from reviews.annotation import CATEGORIES, LABELS
+from reviews.paths import PROCESSED_REVIEWS_FILE, RAW_DIR
 
 ORDER_ITEMS_FILE = "olist_order_items_dataset.csv"
 PRODUCTS_FILE = "olist_products_dataset.csv"
@@ -341,13 +341,15 @@ def monthly(df: pd.DataFrame, seller_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def marketplace_problem_reference(labels_file: Path = LABELS_FILE) -> dict:
-    """Distribuição de referência: as 1.500 negativas sorteadas e anotadas à mão."""
-    labels = load_labels(labels_file)
-    labels = labels[labels[list(LABELS)].sum(axis=1) > 0]
+def reference_from_matrix(matrix: np.ndarray, description: str) -> dict:
+    """Distribuição de referência dos tipos de problema (% das avaliações com cada um)."""
+    matrix = np.asarray(matrix, dtype=int)
+    if matrix.ndim != 2 or matrix.shape[1] != len(LABELS) or len(matrix) == 0:
+        raise ValueError(f"Matriz de referência inválida: {matrix.shape}.")
     return {
-        "avaliacoes": int(len(labels)),
-        "pct": {label: _pct(labels[label].sum(), len(labels)) for label in LABELS},
+        "avaliacoes": int(len(matrix)),
+        "pct": {label: _pct(matrix[:, j].sum(), len(matrix)) for j, label in enumerate(LABELS)},
+        "descricao": description,
     }
 
 
@@ -380,9 +382,7 @@ def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict
     return {
         "avaliacoes_negativas_classificadas": n,
         "ordem": "da categoria mais citada para a menos citada (campo posicao)",
-        "referencia_marketplace": (
-            f"{reference['avaliacoes']} avaliações negativas sorteadas e anotadas à mão"
-        ),
+        "referencia_marketplace": reference["descricao"],
         "observacao": "uma avaliação pode ter mais de um tipo de problema",
         "categorias": rows,
     }

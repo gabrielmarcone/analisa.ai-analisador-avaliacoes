@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from reviews import sellers
-from reviews.annotation import LABEL_COLUMNS, LABELS, save_labels
+from reviews.annotation import LABELS
 
 K = len(LABELS)
 
@@ -198,19 +198,15 @@ def test_evolucao_mensal(df):
     assert meses[1] == {"mes": "2017-03", "avaliacoes": 2, "pct_negativas": 50.0, "nota_media": 2.0}
 
 
-def test_referencia_problemas_e_exemplos(tmp_path, df):
-    labels = pd.DataFrame(0, index=range(4), columns=list(LABEL_COLUMNS))
-    labels["review_id"] = [f"x{i}" for i in range(4)]
-    labels["atraso"] = [1, 1, 0, 0]
-    labels["sem_reclamacao"] = [0, 0, 0, 1]
-    labels["defeito_qualidade"] = [0, 1, 1, 0]
-    labels["revisar"] = False
-    labels["observacao"] = ""
-    labels["anotado_em"] = "2026-11-01T00:00:00+00:00"
-    path = tmp_path / "rotulos.csv"
-    save_labels(labels, path)
-    ref = sellers.marketplace_problem_reference(path)
+def test_referencia_problemas_e_exemplos(df):
+    ref_matrix = np.zeros((4, K), dtype=int)
+    ref_matrix[[0, 1], 0] = 1  # atraso em 2 de 4
+    ref_matrix[3, K - 1] = 1  # sem reclamação em 1 de 4
+    ref = sellers.reference_from_matrix(ref_matrix, "referência de teste")
     assert ref["avaliacoes"] == 4 and ref["pct"]["atraso"] == 50.0
+    assert ref["pct"]["sem_reclamacao"] == 25.0 and ref["descricao"] == "referência de teste"
+    with pytest.raises(ValueError, match="inválida"):
+        sellers.reference_from_matrix(np.zeros((0, K)), "vazia")
 
     neg = df[(df["seller_id"] == "A") & (df["sentimento"] == "negativa")].reset_index(drop=True)
     matrix = np.zeros((len(neg), K), dtype=int)

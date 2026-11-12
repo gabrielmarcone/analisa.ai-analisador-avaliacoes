@@ -5,6 +5,7 @@ import threading
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from reviews import agent, llm, sellers
@@ -13,7 +14,7 @@ from reviews.annotation import LABELS
 from .test_sellers import _items, _products, _reviews, _sellers
 
 K = len(LABELS)
-REF = {"avaliacoes": 1500, "pct": {label: 10.0 for label in LABELS}}
+REF = {"avaliacoes": 1500, "pct": {label: 10.0 for label in LABELS}, "descricao": "ref. de teste"}
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +91,16 @@ def test_ranking_de_problemas_conferido():
     assert agent.wrong_rankings(ok, outputs) == []
     assert agent.wrong_rankings("Produto errado ou diferente é o principal problema.", outputs)
     assert agent.wrong_rankings("O mais citado é X.", []) == []  # sem a ferramenta: não julga
+
+
+def test_aspas_que_so_nomeiam_categoria_nao_sao_citacao():
+    outputs = [{"exemplos": [{"texto": "Esse produto veio com defeito"}]}]
+    text = (
+        'Em "defeito ou má qualidade" e "atendimento, cancelamento ou reembolso", um cliente '
+        'disse: "Esse produto veio com defeito".'
+    )
+    assert agent.unsupported_quotes(text, outputs) == []
+    assert agent.unsupported_quotes('"Esse produto veio sem defeito nenhum"', outputs)
 
 
 # ---------------------------------------------------------------------------
@@ -232,14 +243,18 @@ def test_paradas_inesperadas_e_limites(df, monkeypatch):
 
 
 def test_relatorio_completo_ponta_a_ponta(df, tmp_path, monkeypatch):
-    monkeypatch.setattr(sellers, "marketplace_problem_reference", lambda: REF)
     script = [
         ("tool_use", [_tool_use("t1", "resumo_vendedor"), _tool_use("t2", "problemas_relatados")]),
         ("end_turn", [_text(GOOD)]),
     ]
     client = FakeClient(script)
     path = agent.generate(
-        "A", df, client=client, output_dir=tmp_path / "rel", cache_dir=tmp_path / "cache"
+        "A",
+        df,
+        client=client,
+        output_dir=tmp_path / "rel",
+        cache_dir=tmp_path / "cache",
+        reference=REF,
     )
     assert client.classifier_calls == 1  # 2 negativas do vendedor A, um lote
     text = path.read_text(encoding="utf-8")
@@ -257,9 +272,35 @@ def test_relatorio_completo_ponta_a_ponta(df, tmp_path, monkeypatch):
         [("tool_use", [_tool_use("t1", "resumo_vendedor")]), ("end_turn", [_text(GOOD)])]
     )
     agent.generate(
-        "A", df, client=client2, output_dir=tmp_path / "rel", cache_dir=tmp_path / "cache"
+        "A",
+        df,
+        client=client2,
+        output_dir=tmp_path / "rel",
+        cache_dir=tmp_path / "cache",
+        reference=REF,
     )
     assert client2.classifier_calls == 0
+
+
+def test_referencia_usa_o_mesmo_classificador_e_o_cache(tmp_path):
+    rows = []
+    for split, n in (("treino", 30), ("validacao", 10), ("teste", 20)):
+        for i in range(n):
+            row = {"review_id": f"{split}-{i}", "texto": f"texto {split} {i}", "split": split}
+            row.update({label: 0 for label in LABELS})
+            row["atraso"] = 1
+            rows.append(row)
+    frame = pd.DataFrame(rows)
+    client = FakeClient([])  # o cliente falso responde "atraso" para tudo
+    reference, cost = agent.build_reference(
+        client, frame, cache_dir=tmp_path, progress=lambda _: None
+    )
+    assert reference["avaliacoes"] == 60 and reference["pct"]["atraso"] == 100.0
+    assert "mesmo classificador" in reference["descricao"] and cost > 0
+    assert client.classifier_calls == 4  # lotes de 25: 2 (treino) + 1 + 1
+    again = FakeClient([])
+    agent.build_reference(again, frame, cache_dir=tmp_path, progress=lambda _: None)
+    assert again.classifier_calls == 0  # tudo do cache
 
 
 def test_sdk_de_verdade_devolve_o_raciocinio_ao_modelo(df):

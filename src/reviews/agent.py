@@ -35,10 +35,11 @@ import numpy as np
 import pandas as pd
 
 from reviews import llm, sellers
-from reviews.annotation import LABELS
-from reviews.baseline import TASK_PROBLEMS
+from reviews.annotation import CATEGORIES, LABELS
+from reviews.baseline import TASK_PROBLEMS, problem_frame, split_frames
 from reviews.evaluate import fmt_br
 from reviews.paths import REPORTS_DIR
+from reviews.splits import TEST, TRAIN, VAL
 
 MODEL = llm.MODEL
 AGENT_EFFORT = "medium"
@@ -82,6 +83,10 @@ trecho (um modelo, uma função do produto, um caso de nota fiscal) não viram r
 acima da referência são outra coisa: chame-os de "acima da referência", não de "mais citados".
 - Só relacione volume de vendas com negativas usando `relacao_volume_negativas`; sem relação \
 clara, não sugira que meses movimentados são piores.
+- Não compare com períodos que não estejam nos campos prontos (por exemplo, "acima do início \
+da série").
+- Diferenças menores que 2 pontos percentuais deixam o vendedor no mesmo patamar do \
+marketplace: não recomende ação por causa delas.
 - Não mencione no texto nomes de ferramentas ou de campos (como posicao ou tendencia).
 - Diga o que os dados mostram e separe hipóteses de fatos ("pode indicar", "vale verificar").
 - Amostras pequenas (meses ou categorias com poucas avaliações) não sustentam conclusões \
@@ -91,8 +96,8 @@ fortes: diga isso quando usar.
 ## Formato (Markdown, sem título; o título é colocado depois)
 ## Resumo — 3 a 5 tópicos com o essencial.
 ## Panorama — volume, nota média e distribuição, categorias de produto.
-## Principais problemas — tabela com os tipos de problema e a comparação com a referência; \
-1 ou 2 trechos de exemplo dos mais relevantes.
+## Principais problemas — tabela ordenada do mais citado para o menos citado, com número de \
+avaliações, % das negativas e comparação com a referência; 1 ou 2 trechos de exemplo.
 ## Entregas — atraso e o efeito dele nas notas, comparado ao marketplace.
 ## Evolução — últimos 3 meses × 3 anteriores, pior e melhor mês (sem listar todos os meses).
 ## Recomendações — 3 a 5 ações concretas, cada uma ligada a um dado do relatório.
@@ -260,16 +265,29 @@ def _strings(node) -> list[str]:
     return []
 
 
+_CONNECTORS = {"ou", "e", "de", "do", "da", "dos", "das", "no", "na", "com", "em", "por"}
+_CATEGORY_WORDS = [
+    set(re.findall(r"\w+", _normalize(f"{code} {name}"))) for code, name in CATEGORIES.items()
+]
+
+
+def _names_a_category(quote: str) -> bool:
+    """Aspas usadas só para nomear um tipo de problema ("defeito ou má qualidade")."""
+    words = set(re.findall(r"\w+", _normalize(quote))) - _CONNECTORS
+    return bool(words) and any(words <= category for category in _CATEGORY_WORDS)
+
+
 def unsupported_quotes(report: str, outputs: list[dict]) -> list[str]:
     """Trechos entre aspas que não aparecem, palavra por palavra, nas ferramentas.
 
-    Reticências marcam cortes: cada pedaço precisa existir no texto original.
+    Reticências marcam cortes: cada pedaço precisa existir no texto original. Aspas que
+    só nomeiam um tipo de problema não são citações e ficam de fora.
     """
     sources = [_normalize(_ELLIPSIS.sub(" ", s)) for s in _strings(outputs)]
     missing = []
     for straight, curly in _QUOTE.findall(report):
         quote = straight or curly
-        if len(quote) < MIN_QUOTE_CHARS:
+        if len(quote) < MIN_QUOTE_CHARS or _names_a_category(quote):
             continue
         for fragment in _ELLIPSIS.split(quote):
             piece = _normalize(fragment).strip(" .,;:!?")
@@ -359,6 +377,49 @@ def classify_negatives(
     )
     matrix = llm.problems_to_matrix(run.predictions)
     return negatives, matrix, llm.cost_usd(llm._sum_usage(run.records))
+
+
+def build_reference(
+    client=None,
+    frame: pd.DataFrame | None = None,
+    limit_usd: float = DEFAULT_LIMIT_USD,
+    cache_dir: Path = llm.CACHE_DIR,
+    progress: Callable[[str], None] = print,
+) -> tuple[dict, float]:
+    """Referência do marketplace medida com o MESMO classificador usado no vendedor.
+
+    Usa as 1500 negativas sorteadas do projeto. Comparar o vendedor (rotulado pelo LLM)
+    com rótulos humanos misturaria duas réguas: nas 750 avaliações de validação e teste,
+    o LLM marca "outro problema" em 11,6% delas e a anotação, em 10,0%; essa diferença
+    apareceria como se fosse do vendedor. Validação e teste já estão no cache da Fase 5
+    (mesmos lotes); só o treino é classificado aqui.
+    """
+    frame = problem_frame() if frame is None else frame
+    parts = split_frames(frame)
+    config = llm.RunConfig(task=TASK_PROBLEMS, effort=PROBLEMS_EFFORT)
+    pending = sum(llm._pending_batches(parts[s], config, s, cache_dir) for s in (TRAIN, VAL, TEST))
+    if pending and client is None:
+        client = llm.make_client()
+    classifier = llm.Classifier(client, config) if client is not None else None
+    predictions, cost = [], 0.0
+    for split in (TRAIN, VAL, TEST):
+        run = llm.run_split(
+            parts[split],
+            config,
+            split,
+            classifier,
+            llm.DEFAULT_PARALLEL,
+            limit_usd,
+            cache_dir,
+            progress,
+        )
+        predictions.extend(run.predictions)
+        cost += llm.cost_usd(llm._sum_usage(run.records))
+    description = (
+        f"o mesmo classificador aplicado às {len(predictions)} avaliações negativas sorteadas "
+        "do marketplace (as mesmas anotadas à mão no projeto)"
+    )
+    return sellers.reference_from_matrix(llm.problems_to_matrix(predictions), description), cost
 
 
 # ---------------------------------------------------------------------------
@@ -526,8 +587,9 @@ def methodology(classification_cost: float, result: AgentResult, n_negatives: in
   mesma base.
 - **Tipos de problema:** as {n_negatives} avaliações negativas do vendedor foram
   classificadas pelo {llm.MODEL_NAME}, o melhor modelo do projeto nessa tarefa (F1 macro
-  0,881 no teste). A referência do marketplace são 1500 avaliações negativas sorteadas e
-  anotadas à mão.
+  0,881 no teste). A referência do marketplace é o mesmo classificador aplicado às 1500
+  avaliações negativas sorteadas do projeto, para que vendedor e marketplace sejam
+  medidos com a mesma régua.
 - **Texto:** escrito por um agente ({MODEL}) que só consulta números calculados com
   pandas. {check}
 - **Custo:** US$ {fmt_br(total, 4)} ({result.calls} chamadas do agente).
@@ -586,13 +648,16 @@ def generate(
     limit_usd: float = DEFAULT_LIMIT_USD,
     output_dir: Path = OUTPUT_DIR,
     cache_dir: Path = llm.CACHE_DIR,
+    reference: dict | None = None,
 ) -> Path:
     df = sellers.load_seller_reviews() if df is None else df
     sellers.seller_frame(df, seller_id)  # aborta cedo se o vendedor não existe
     if client is None:
         client = llm.make_client()
+    if reference is None:
+        reference, _ = build_reference(client, limit_usd=limit_usd, cache_dir=cache_dir)
     negatives, matrix, class_cost = classify_negatives(df, seller_id, client, limit_usd, cache_dir)
-    tools = SellerTools(df, seller_id, negatives, matrix, sellers.marketplace_problem_reference())
+    tools = SellerTools(df, seller_id, negatives, matrix, reference)
     result = run_agent(client, tools, limit_usd - class_cost)
     path = write_report(seller_id, result, tools, class_cost, output_dir)
     problems = result.unsupported + result.unsupported_quotes + result.wrong_rankings
@@ -621,6 +686,15 @@ def simulate(seller_id: str, df: pd.DataFrame) -> None:
     print(f"\n{n_neg} negativas a classificar: {pending} lotes fora do cache.")
 
 
+def simulate_reference() -> None:
+    parts = split_frames(problem_frame())
+    config = llm.RunConfig(task=TASK_PROBLEMS, effort=PROBLEMS_EFFORT)
+    pending = sum(
+        llm._pending_batches(parts[s], config, s, llm.CACHE_DIR) for s in (TRAIN, VAL, TEST)
+    )
+    print(f"Referência do marketplace (1500 negativas): {pending} lotes fora do cache.")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Relatórios de avaliações para vendedores.")
     sub = parser.add_subparsers(dest="comando", required=True)
@@ -641,12 +715,17 @@ def main(argv: list[str] | None = None) -> None:
         print(sellers.top_sellers(df, args.top).to_string())
         return
     ids = [args.vendedor] if args.vendedor else list(sellers.top_sellers(df, args.top).index)
-    for seller_id in ids:
-        if args.simular:
+    if args.simular:
+        simulate_reference()
+        for seller_id in ids:
             print(f"\n===== vendedor {seller_id} =====")
             simulate(seller_id, df)
-        else:
-            generate(seller_id, df, limit_usd=args.limite_usd)
+        return
+    client = llm.make_client()
+    reference, cost = build_reference(client, limit_usd=args.limite_usd)
+    print(f"Referência do marketplace pronta · US$ {cost:.4f} (paga uma vez; depois vem do cache)")
+    for seller_id in ids:
+        generate(seller_id, df, client, limit_usd=args.limite_usd, reference=reference)
 
 
 if __name__ == "__main__":
