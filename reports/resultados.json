@@ -141,6 +141,88 @@
           }
         },
         "registrado_em": "2026-11-11T23:13:46+00:00"
+      },
+      "llm_zero_shot": {
+        "avaliacoes_por_segundo": 2.8340176584760264,
+        "chamadas": 20,
+        "conjunto_identico": 0.784,
+        "custo_total_usd": 0.024525599999999998,
+        "custo_usd_por_1000": 0.049051199999999996,
+        "f1_macro": 0.8808296501020294,
+        "f1_micro": 0.9015405224380442,
+        "falhas": 0,
+        "hiperparametros": {
+          "configuracao": "04e8cdfaab6d",
+          "esforco": "medium",
+          "lote": 25,
+          "max_tokens": 16000,
+          "modelo_api": "claude-haiku-5-5",
+          "versao_prompt": "v1"
+        },
+        "jaccard_medio": 0.8714,
+        "latencia_medida_em": "API da Anthropic, soma do tempo das chamadas ÷ avaliações (lotes de 25)",
+        "latencia_ms_por_avaliacao": 352.8559524000084,
+        "latencia_ms_por_chamada": 8821.39881000021,
+        "modelo": "Claude Haiku 5.5 (zero-shot)",
+        "n": 500,
+        "por_classe": {
+          "atendimento": {
+            "f1": 0.8780487804878049,
+            "precisao": 0.8811188811188811,
+            "revocacao": 0.875,
+            "suporte": 144
+          },
+          "atraso": {
+            "f1": 0.9447236180904522,
+            "precisao": 0.9494949494949495,
+            "revocacao": 0.94,
+            "suporte": 100
+          },
+          "defeito_qualidade": {
+            "f1": 0.9273743016759777,
+            "precisao": 0.9325842696629213,
+            "revocacao": 0.9222222222222223,
+            "suporte": 90
+          },
+          "incompleto": {
+            "f1": 0.9433962264150944,
+            "precisao": 0.974025974025974,
+            "revocacao": 0.9146341463414634,
+            "suporte": 82
+          },
+          "nao_recebido": {
+            "f1": 0.9230769230769231,
+            "precisao": 0.8983957219251337,
+            "revocacao": 0.9491525423728814,
+            "suporte": 177
+          },
+          "outro": {
+            "f1": 0.6538461538461539,
+            "precisao": 0.5862068965517241,
+            "revocacao": 0.7391304347826086,
+            "suporte": 46
+          },
+          "produto_diferente": {
+            "f1": 0.9340659340659341,
+            "precisao": 0.9139784946236559,
+            "revocacao": 0.9550561797752809,
+            "suporte": 89
+          },
+          "sem_reclamacao": {
+            "f1": 0.8421052631578947,
+            "precisao": 0.8,
+            "revocacao": 0.8888888888888888,
+            "suporte": 9
+          }
+        },
+        "registrado_em": "2026-11-12T00:23:48+00:00",
+        "tokens": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 49680,
+          "input_tokens": 30088,
+          "output_tokens": 42040,
+          "thinking_tokens": 30299
+        }
       }
     },
     "validacao": {
@@ -284,6 +366,88 @@
           }
         },
         "registrado_em": "2026-11-11T23:13:46+00:00"
+      },
+      "llm_zero_shot": {
+        "avaliacoes_por_segundo": 2.489087724915854,
+        "chamadas": 10,
+        "conjunto_identico": 0.788,
+        "custo_total_usd": 0.013807,
+        "custo_usd_por_1000": 0.055228,
+        "f1_macro": 0.8990644713237004,
+        "f1_micro": 0.9051490514905149,
+        "falhas": 0,
+        "hiperparametros": {
+          "configuracao": "04e8cdfaab6d",
+          "esforco": "medium",
+          "lote": 25,
+          "max_tokens": 16000,
+          "modelo_api": "claude-haiku-5-5",
+          "versao_prompt": "v1"
+        },
+        "jaccard_medio": 0.878,
+        "latencia_medida_em": "API da Anthropic, soma do tempo das chamadas ÷ avaliações (lotes de 25)",
+        "latencia_ms_por_avaliacao": 401.7536184000128,
+        "latencia_ms_por_chamada": 10043.84046000032,
+        "modelo": "Claude Haiku 5.5 (zero-shot)",
+        "n": 250,
+        "por_classe": {
+          "atendimento": {
+            "f1": 0.8714285714285714,
+            "precisao": 0.8591549295774648,
+            "revocacao": 0.8840579710144928,
+            "suporte": 69
+          },
+          "atraso": {
+            "f1": 0.9523809523809523,
+            "precisao": 0.9433962264150944,
+            "revocacao": 0.9615384615384616,
+            "suporte": 52
+          },
+          "defeito_qualidade": {
+            "f1": 0.9148936170212766,
+            "precisao": 0.9347826086956522,
+            "revocacao": 0.8958333333333334,
+            "suporte": 48
+          },
+          "incompleto": {
+            "f1": 0.926829268292683,
+            "precisao": 0.9047619047619048,
+            "revocacao": 0.95,
+            "suporte": 40
+          },
+          "nao_recebido": {
+            "f1": 0.9575757575757575,
+            "precisao": 0.9404761904761905,
+            "revocacao": 0.9753086419753086,
+            "suporte": 81
+          },
+          "outro": {
+            "f1": 0.6206896551724138,
+            "precisao": 0.6206896551724138,
+            "revocacao": 0.6206896551724138,
+            "suporte": 29
+          },
+          "produto_diferente": {
+            "f1": 0.9487179487179487,
+            "precisao": 0.9487179487179487,
+            "revocacao": 0.9487179487179487,
+            "suporte": 39
+          },
+          "sem_reclamacao": {
+            "f1": 1.0,
+            "precisao": 1.0,
+            "revocacao": 1.0,
+            "suporte": 8
+          }
+        },
+        "registrado_em": "2026-11-12T00:22:59+00:00",
+        "tokens": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 24840,
+          "input_tokens": 14666,
+          "output_tokens": 24184,
+          "thinking_tokens": 18363
+        }
       }
     }
   },
@@ -353,6 +517,50 @@
           }
         },
         "registrado_em": "2026-11-11T23:07:23+00:00"
+      },
+      "llm_zero_shot": {
+        "acuracia": 0.9442349137931034,
+        "avaliacoes_por_segundo": 11.801644997531831,
+        "chamadas": 149,
+        "custo_total_usd": 0.052446900000000005,
+        "custo_usd_por_1000": 0.014129014008620691,
+        "f1_macro": 0.9348165506633301,
+        "falhas": 0,
+        "hiperparametros": {
+          "configuracao": "f2dab804293b",
+          "esforco": "low",
+          "lote": 25,
+          "max_tokens": 16000,
+          "modelo_api": "claude-haiku-5-5",
+          "versao_prompt": "v1"
+        },
+        "latencia_medida_em": "API da Anthropic, soma do tempo das chamadas ÷ avaliações (lotes de 25)",
+        "latencia_ms_por_avaliacao": 84.73395024245669,
+        "latencia_ms_por_chamada": 2110.9558610738204,
+        "modelo": "Claude Haiku 5.5 (zero-shot)",
+        "n": 3712,
+        "por_classe": {
+          "negativa": {
+            "f1": 0.910039113428944,
+            "precisao": 0.8546938775510204,
+            "revocacao": 0.9730483271375465,
+            "suporte": 1076
+          },
+          "positiva": {
+            "f1": 0.9595939878977162,
+            "precisao": 0.9883393646964214,
+            "revocacao": 0.93247344461305,
+            "suporte": 2636
+          }
+        },
+        "registrado_em": "2026-11-12T00:22:33+00:00",
+        "tokens": {
+          "cache_creation_input_tokens": 2712,
+          "cache_read_input_tokens": 98310,
+          "input_tokens": 168973,
+          "output_tokens": 68455,
+          "thinking_tokens": 0
+        }
       }
     },
     "validacao": {
@@ -420,6 +628,50 @@
           }
         },
         "registrado_em": "2026-11-11T23:07:23+00:00"
+      },
+      "llm_zero_shot": {
+        "acuracia": 0.9450431034482759,
+        "avaliacoes_por_segundo": 12.288443105326333,
+        "chamadas": 149,
+        "custo_total_usd": 0.05226482,
+        "custo_usd_por_1000": 0.014079962284482758,
+        "f1_macro": 0.9355909656149686,
+        "falhas": 0,
+        "hiperparametros": {
+          "configuracao": "f2dab804293b",
+          "esforco": "low",
+          "lote": 25,
+          "max_tokens": 16000,
+          "modelo_api": "claude-haiku-5-5",
+          "versao_prompt": "v1"
+        },
+        "latencia_medida_em": "API da Anthropic, soma do tempo das chamadas ÷ avaliações (lotes de 25)",
+        "latencia_ms_por_avaliacao": 81.37727386853079,
+        "latencia_ms_por_chamada": 2027.3318161072905,
+        "modelo": "Claude Haiku 5.5 (zero-shot)",
+        "n": 3712,
+        "por_classe": {
+          "negativa": {
+            "f1": 0.9109170305676856,
+            "precisao": 0.8591433278418451,
+            "revocacao": 0.9693308550185874,
+            "suporte": 1076
+          },
+          "positiva": {
+            "f1": 0.9602649006622517,
+            "precisao": 0.9867894315452362,
+            "revocacao": 0.9351289833080425,
+            "suporte": 2636
+          }
+        },
+        "registrado_em": "2026-11-12T00:21:13+00:00",
+        "tokens": {
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 101022,
+          "input_tokens": 170271,
+          "output_tokens": 68455,
+          "thinking_tokens": 0
+        }
       }
     }
   }
