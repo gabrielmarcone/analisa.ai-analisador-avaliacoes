@@ -83,6 +83,74 @@ python -m reviews.llm sentimento --esforco low --teste     # idem (empate na val
 - O custo é calculado a partir dos tokens que a API informa como cobrados, e há uma trava
   de gasto por execução (`--limite-usd`, padrão US$ 2).
 
+### Agente de relatórios para vendedores (Fase 6)
+
+Um agente escreve, para cada vendedor, um relatório em Markdown sobre as avaliações
+dos clientes: panorama, principais problemas com trechos reais, entregas, evolução no
+tempo, comparação com o marketplace e recomendações.
+
+```bash
+python -m reviews.agent vendedores                    # quem tem mais avaliações negativas
+python -m reviews.agent relatorio --top 3 --simular   # mostra os números, sem chamar a API
+python -m reviews.agent relatorio --top 3             # gera os relatórios em reports/relatorios/
+```
+
+- **Dados primeiro, texto depois.** Os números vêm de funções em pandas
+  (`src/reviews/sellers.py`); o Claude Haiku 5.5 só os consulta como ferramentas e
+  escreve o texto.
+- **Cada número na base certa.** Nota, % de negativas, comparação com o marketplace e
+  evolução usam todas as avaliações, com ou sem comentário; o atraso usa todos os
+  pedidos entregues; só os tipos de problema ficam nas negativas com comentário, as
+  únicas com texto. Medir tudo só nas comentadas distorceria o retrato: quem está
+  insatisfeito escreve mais (no marketplace, 25,0% de negativas entre as comentadas
+  contra 13,7% no total; atraso de 9,8% contra 6,9% dos pedidos).
+- **Tipos de problema** das negativas com comentário do vendedor: classificador da
+  Fase 5 (melhor modelo nessa tarefa), com o mesmo cache. A referência do marketplace é
+  o mesmo classificador aplicado às 1500 negativas sorteadas do projeto: vendedor e
+  marketplace medidos com a mesma régua (comparar rótulos do LLM com rótulos humanos
+  inflaria, por exemplo, "outro problema", que o LLM marca um pouco mais que a
+  anotação).
+- **Verificação automática:** cada número do relatório é conferido com o que as
+  ferramentas devolveram; cada citação entre aspas, com o texto original da
+  avaliação; cada frase que aponta "o problema mais citado", com a contagem; e cada
+  recomendação sobre um tipo de problema, que precisa estar entre os 3 mais citados ou
+  2 pontos acima da referência. Se algo não bater, o agente reescreve uma vez, e o que
+  sobrar fica marcado no próprio relatório. Cada relatório vem com um arquivo
+  `_ferramentas.json` que registra todas as consultas e os motivos de cada reescrita,
+  para auditoria.
+- **Comparações prontas:** ranking dos problemas, pior e melhor mês, últimos 3 meses
+  contra os 3 anteriores e a relação entre volume e negativas (correlação de Spearman)
+  vêm calculados das ferramentas, porque um LLM lendo uma tabela de meses erra esse
+  tipo de comparação.
+- Limite de chamadas e de gasto por relatório; os textos das avaliações entram como
+  dados, nunca como instruções.
+
+Relatórios gerados (os três vendedores com mais avaliações negativas; no marketplace,
+13,7% das avaliações são negativas):
+
+| Vendedor | Categoria principal | Avaliações | Negativas | Problema mais citado nas negativas com comentário |
+|---|---|---:|---:|---|
+| [`4a3ca931`](reports/relatorios/vendedor_4a3ca931.md) | cama, mesa e banho | 1685 | 17,9% | Não recebido (36,4%) |
+| [`6560211a`](reports/relatorios/vendedor_6560211a.md) | relógios e presentes | 1802 | 16,6% | Defeito ou má qualidade (37,1%) |
+| [`cc419e06`](reports/relatorios/vendedor_cc419e06.md) | beleza e saúde | 1683 | 14,7% | Não recebido (35,6%) |
+
+Cada relatório custou entre US$ 0,014 e US$ 0,018 para gerar do zero (classificação das
+negativas e agente); a referência do marketplace custou US$ 0,08 uma vez e serve a todos.
+O custo de cada um está na seção "Como este relatório foi feito".
+
+O verificador garante números, citações, o "mais citado" e o apoio das recomendações
+sobre tipos de problema, não toda a interpretação: a redação ainda pode simplificar uma
+comparação, dar peso demais a um único exemplo ou sugerir uma causa que os dados não
+medem. Por isso os relatórios publicados aqui foram lidos por uma pessoa antes de entrar
+no repositório. As leituras das versões anteriores encontraram comparações erradas entre
+meses, um "segundo problema mais citado" trocado, recomendações tiradas de um único
+comentário ou de um problema no mesmo patamar do marketplace, uma referência medida com
+outra régua, nota e atraso medidos só nas avaliações com comentário e um verificador que
+marcava como erro um "terceiro mais citado" correto; cada tipo de erro virou uma
+correção no código (comparações prontas, verificações automáticas, referência pelo mesmo
+classificador, a base certa para cada número e regras no prompt), e não uma edição
+manual do texto.
+
 ### Resultados
 
 Os números ficam em [`reports/resultados.md`](reports/resultados.md), acumulados por
@@ -153,11 +221,13 @@ ainda sobe com 750 exemplos: mais anotação ajudaria os modelos treinados.
 
 [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce), publicado pela Olist no Kaggle sob a licença **CC BY-NC-SA 4.0** (uso não comercial). Os dados não ficam neste repositório: são baixados pelo script. Os modelos treinados com eles seguem a mesma licença.
 
+O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados**, os **modelos** e os **relatórios** gerados a partir deles seguem a CC BY-NC-SA 4.0 da base.
+
 ## Decisões de dados
 
 | Decisão | Motivo |
 |---|---|
-| Só avaliações com comentário | Sem texto não há o que classificar. |
+| Classificadores e anotação só com avaliações com comentário | Sem texto não há o que classificar. |
 | Sentimento pela nota: 1–2 negativa, 4–5 positiva, 3 neutra | A nota 3 mistura elogio e reclamação; fica fora da tarefa binária. |
 | Métrica principal: F1 macro | As positivas dominam; acurácia premiaria chutar sempre "positiva". |
 | Texto limpo de forma conservadora (mantém maiúsculas, acentos e pontuação) | O BERTimbau é *cased* e aproveita essas pistas. |
@@ -175,16 +245,20 @@ ainda sobe com 750 exemplos: mais anotação ajudaria os modelos treinados.
 | LLM zero-shot com as regras do guia, mas sem nenhum exemplo rotulado | É o mesmo critério que o anotador seguiu; exemplos tornariam o teste "few-shot". |
 | LLM classifica em lotes de 25 com saída em JSON validada | 25 vezes menos chamadas, e as instruções são pagas uma vez por lote; resposta fora do formato é refeita, e o que falhar fica contado. |
 | Latência dos modelos locais medida em CPU | É o hardware da demo; a latência em GPU do BERTimbau fica registrada à parte. |
+| Relatórios: números calculados em pandas; o LLM só consulta e escreve | Um modelo de linguagem não deve fazer contas; assim cada número tem origem rastreável. |
+| Cada número do relatório é conferido automaticamente com as ferramentas | Impede números inventados ("alucinação"); o que não bater fica marcado. |
+| Relatório por vendedor só com pedidos de um único vendedor | Num pedido com vários vendedores, a avaliação não diz de quem é a culpa. |
+| Relatórios: nota e negativas sobre todas as avaliações; atraso sobre todos os pedidos entregues | Só 41% das avaliações têm comentário, e quem está insatisfeito escreve mais; medir tudo nas comentadas mostraria vendedores e marketplace piores do que são. |
 
 ## Estrutura
 
 ```
-src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM)
+src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM, agente)
 docs/             guia de anotação
 annotations/      fila e rótulos da anotação (só IDs, sem texto)
 notebooks/        análise exploratória (01) e treino do BERTimbau no Colab (02)
 splits/           IDs da divisão treino/validação/teste
-reports/          resultados por modelo (`resultados.md`), figuras e relatórios
+reports/          resultados por modelo (`resultados.md`), figuras e relatórios dos vendedores
 models/           modelos treinados (fora do Git)
 tests/            testes automatizados
 ```

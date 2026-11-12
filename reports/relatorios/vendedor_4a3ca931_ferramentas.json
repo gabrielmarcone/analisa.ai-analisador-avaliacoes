@@ -1,0 +1,498 @@
+{
+  "vendedor": "4a3ca9315b744ce9f8e9374361493884",
+  "gerado_em": "2026-11-12",
+  "modelo": "claude-haiku-5-5",
+  "esforco": "medium",
+  "chamadas": 3,
+  "reescritas": 0,
+  "motivos_das_reescritas": [],
+  "numeros_conferidos": 124,
+  "numeros_sem_fonte": [],
+  "citacoes_sem_fonte": [],
+  "rankings_errados": [],
+  "recomendacoes_sem_apoio": [],
+  "custo_usd": {
+    "classificacao": 0.013415,
+    "agente": 0.003895,
+    "total": 0.01731,
+    "gasto_nesta_execucao": 0.003895
+  },
+  "tokens": {
+    "input_tokens": 9982,
+    "cache_creation_input_tokens": 2851,
+    "cache_read_input_tokens": 5702,
+    "output_tokens": 4966,
+    "thinking_tokens": 2235
+  },
+  "ferramentas": [
+    {
+      "ferramenta": "resumo_vendedor",
+      "entrada": {},
+      "saida": {
+        "vendedor": "4a3ca9315b744ce9f8e9374361493884",
+        "cidade": "ibitinga",
+        "estado": "SP",
+        "base": "todas as avaliações do vendedor, com ou sem comentário",
+        "avaliacoes": 1685,
+        "nota_media": 3.88,
+        "pct_negativas": 17.9,
+        "pct_neutras": 12.3,
+        "pct_positivas": 69.9,
+        "avaliacoes_negativas": 301,
+        "avaliacoes_com_comentario": 845,
+        "negativas_com_comentario": 236,
+        "primeiro_mes": "2017-01",
+        "ultimo_mes": "2018-08",
+        "categorias_principais": [
+          {
+            "categoria": "cama mesa banho",
+            "avaliacoes": 1346,
+            "pct": 79.9
+          },
+          {
+            "categoria": "casa conforto",
+            "avaliacoes": 199,
+            "pct": 11.8
+          },
+          {
+            "categoria": "moveis decoracao",
+            "avaliacoes": 70,
+            "pct": 4.2
+          },
+          {
+            "categoria": "brinquedos",
+            "avaliacoes": 47,
+            "pct": 2.8
+          },
+          {
+            "categoria": "casa conforto 2",
+            "avaliacoes": 17,
+            "pct": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "comparar_com_marketplace",
+      "entrada": {},
+      "saida": {
+        "base": "todas as avaliações, com ou sem comentário",
+        "nota_media_vendedor": 3.88,
+        "nota_media_marketplace": 4.12,
+        "diferenca_nota": -0.24,
+        "pct_negativas_vendedor": 17.9,
+        "pct_negativas_marketplace": 13.7,
+        "diferenca_pontos_percentuais": 4.2,
+        "vendedores_comparaveis": 619,
+        "minimo_de_avaliacoes_para_comparar": 30,
+        "pct_vendedores_com_menos_negativas": 79.6,
+        "mesmas_categorias": [
+          {
+            "categoria": "cama mesa banho",
+            "avaliacoes_vendedor": 1346,
+            "pct_negativas_vendedor": 17.2,
+            "pct_negativas_marketplace": 15.5,
+            "diferenca_pontos_percentuais": 1.7
+          },
+          {
+            "categoria": "casa conforto",
+            "avaliacoes_vendedor": 199,
+            "pct_negativas_vendedor": 19.6,
+            "pct_negativas_marketplace": 17.0,
+            "diferenca_pontos_percentuais": 2.6
+          },
+          {
+            "categoria": "moveis decoracao",
+            "avaliacoes_vendedor": 70,
+            "pct_negativas_vendedor": 22.9,
+            "pct_negativas_marketplace": 15.5,
+            "diferenca_pontos_percentuais": 7.4
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "entregas",
+      "entrada": {},
+      "saida": {
+        "atraso_nos_pedidos": {
+          "base": "todos os pedidos entregues, com ou sem avaliação",
+          "vendedor": {
+            "pedidos_entregues": 1673,
+            "pedidos_com_atraso": 168,
+            "pct_com_atraso": 10.0,
+            "mediana_dias_de_atraso": 8.0
+          },
+          "marketplace": {
+            "pedidos_entregues": 95201,
+            "pedidos_com_atraso": 6522,
+            "pct_com_atraso": 6.9,
+            "mediana_dias_de_atraso": 7.0
+          },
+          "diferenca_pct_com_atraso_pontos_percentuais": 3.1
+        },
+        "notas_com_e_sem_atraso": {
+          "base": "avaliações de pedidos entregues, com ou sem comentário",
+          "vendedor": {
+            "avaliacoes_com_atraso": 166,
+            "avaliacoes_no_prazo": 1488,
+            "nota_media_com_atraso": 2.23,
+            "nota_media_no_prazo": 4.1,
+            "pct_negativas_com_atraso": 63.9,
+            "pct_negativas_no_prazo": 11.9
+          },
+          "marketplace": {
+            "avaliacoes_com_atraso": 6347,
+            "avaliacoes_no_prazo": 87999,
+            "nota_media_com_atraso": 2.27,
+            "nota_media_no_prazo": 4.31,
+            "pct_negativas_com_atraso": 62.4,
+            "pct_negativas_no_prazo": 8.7
+          },
+          "diferenca_nota_com_atraso": -0.04,
+          "diferenca_nota_no_prazo": -0.21,
+          "diferenca_pct_negativas_com_atraso_pontos_percentuais": 1.5,
+          "diferenca_pct_negativas_no_prazo_pontos_percentuais": 3.2
+        },
+        "avaliacoes_de_pedidos_nao_entregues": 31
+      }
+    },
+    {
+      "ferramenta": "evolucao_mensal",
+      "entrada": {},
+      "saida": {
+        "base": "todas as avaliações do vendedor, com ou sem comentário",
+        "meses": [
+          {
+            "mes": "2017-01",
+            "avaliacoes": 9,
+            "pct_negativas": 22.2,
+            "nota_media": 3.78
+          },
+          {
+            "mes": "2017-02",
+            "avaliacoes": 17,
+            "pct_negativas": 5.9,
+            "nota_media": 4.41
+          },
+          {
+            "mes": "2017-03",
+            "avaliacoes": 49,
+            "pct_negativas": 20.4,
+            "nota_media": 3.82
+          },
+          {
+            "mes": "2017-04",
+            "avaliacoes": 48,
+            "pct_negativas": 14.6,
+            "nota_media": 3.96
+          },
+          {
+            "mes": "2017-05",
+            "avaliacoes": 104,
+            "pct_negativas": 16.3,
+            "nota_media": 3.95
+          },
+          {
+            "mes": "2017-06",
+            "avaliacoes": 101,
+            "pct_negativas": 14.9,
+            "nota_media": 3.86
+          },
+          {
+            "mes": "2017-07",
+            "avaliacoes": 118,
+            "pct_negativas": 12.7,
+            "nota_media": 4.03
+          },
+          {
+            "mes": "2017-08",
+            "avaliacoes": 101,
+            "pct_negativas": 10.9,
+            "nota_media": 4.19
+          },
+          {
+            "mes": "2017-09",
+            "avaliacoes": 97,
+            "pct_negativas": 11.3,
+            "nota_media": 4.23
+          },
+          {
+            "mes": "2017-10",
+            "avaliacoes": 111,
+            "pct_negativas": 14.4,
+            "nota_media": 3.93
+          },
+          {
+            "mes": "2017-11",
+            "avaliacoes": 94,
+            "pct_negativas": 14.9,
+            "nota_media": 4.11
+          },
+          {
+            "mes": "2017-12",
+            "avaliacoes": 154,
+            "pct_negativas": 32.5,
+            "nota_media": 3.21
+          },
+          {
+            "mes": "2018-01",
+            "avaliacoes": 79,
+            "pct_negativas": 19.0,
+            "nota_media": 3.82
+          },
+          {
+            "mes": "2018-02",
+            "avaliacoes": 95,
+            "pct_negativas": 17.9,
+            "nota_media": 3.86
+          },
+          {
+            "mes": "2018-03",
+            "avaliacoes": 117,
+            "pct_negativas": 37.6,
+            "nota_media": 3.22
+          },
+          {
+            "mes": "2018-04",
+            "avaliacoes": 87,
+            "pct_negativas": 19.5,
+            "nota_media": 3.91
+          },
+          {
+            "mes": "2018-05",
+            "avaliacoes": 73,
+            "pct_negativas": 13.7,
+            "nota_media": 3.89
+          },
+          {
+            "mes": "2018-06",
+            "avaliacoes": 88,
+            "pct_negativas": 13.6,
+            "nota_media": 4.05
+          },
+          {
+            "mes": "2018-07",
+            "avaliacoes": 73,
+            "pct_negativas": 8.2,
+            "nota_media": 4.26
+          },
+          {
+            "mes": "2018-08",
+            "avaliacoes": 70,
+            "pct_negativas": 15.7,
+            "nota_media": 4.16
+          }
+        ],
+        "relacao_volume_negativas": {
+          "meses_usados": 18,
+          "correlacao_spearman": 0.07,
+          "leitura": "sem relação clara: o volume do mês não acompanha a proporção de negativas",
+          "cuidado": "correlação não mostra causa"
+        },
+        "minimo_de_avaliacoes_para_mes_relevante": 20,
+        "meses_relevantes": 18,
+        "mes_com_mais_negativas": {
+          "mes": "2018-03",
+          "avaliacoes": 117,
+          "pct_negativas": 37.6,
+          "nota_media": 3.22
+        },
+        "mes_com_menos_negativas": {
+          "mes": "2018-07",
+          "avaliacoes": 73,
+          "pct_negativas": 8.2,
+          "nota_media": 4.26
+        },
+        "mes_com_mais_avaliacoes": {
+          "mes": "2017-12",
+          "avaliacoes": 154,
+          "pct_negativas": 32.5,
+          "nota_media": 3.21
+        },
+        "tendencia": {
+          "ultimos_3_meses": {
+            "meses": [
+              "2018-06",
+              "2018-07",
+              "2018-08"
+            ],
+            "avaliacoes": 231,
+            "pct_negativas": 12.6,
+            "nota_media": 4.15
+          },
+          "3_meses_anteriores": {
+            "meses": [
+              "2018-03",
+              "2018-04",
+              "2018-05"
+            ],
+            "avaliacoes": 277,
+            "pct_negativas": 25.6,
+            "nota_media": 3.61
+          },
+          "diferenca_pct_negativas_pontos_percentuais": -13.0,
+          "diferenca_nota": 0.54
+        },
+        "observacao": "meses com menos avaliações que o mínimo oscilam muito e ficam fora de mes_com_mais_negativas e mes_com_menos_negativas; a tendência usa todos os meses"
+      }
+    },
+    {
+      "ferramenta": "problemas_relatados",
+      "entrada": {},
+      "saida": {
+        "base": "só as avaliações negativas com comentário, as únicas com texto para classificar",
+        "avaliacoes_negativas_classificadas": 236,
+        "ordem": "da categoria mais citada para a menos citada (campo posicao)",
+        "referencia_marketplace": "o mesmo classificador aplicado às 1500 avaliações negativas com comentário sorteadas do marketplace (as mesmas anotadas à mão no projeto)",
+        "observacao": "uma avaliação pode ter mais de um tipo de problema",
+        "categorias": [
+          {
+            "categoria": "nao_recebido",
+            "nome": "Não recebido",
+            "avaliacoes": 86,
+            "pct_das_negativas_com_comentario": 36.4,
+            "pct_referencia_marketplace": 35.5,
+            "diferenca_pontos_percentuais": 0.9,
+            "posicao": 1
+          },
+          {
+            "categoria": "atendimento",
+            "nome": "Atendimento, cancelamento ou reembolso",
+            "avaliacoes": 54,
+            "pct_das_negativas_com_comentario": 22.9,
+            "pct_referencia_marketplace": 27.7,
+            "diferenca_pontos_percentuais": -4.8,
+            "posicao": 2
+          },
+          {
+            "categoria": "produto_diferente",
+            "nome": "Produto errado ou diferente",
+            "avaliacoes": 52,
+            "pct_das_negativas_com_comentario": 22.0,
+            "pct_referencia_marketplace": 17.5,
+            "diferenca_pontos_percentuais": 4.5,
+            "posicao": 3
+          },
+          {
+            "categoria": "defeito_qualidade",
+            "nome": "Defeito, avaria ou má qualidade",
+            "avaliacoes": 50,
+            "pct_das_negativas_com_comentario": 21.2,
+            "pct_referencia_marketplace": 17.1,
+            "diferenca_pontos_percentuais": 4.1,
+            "posicao": 4
+          },
+          {
+            "categoria": "atraso",
+            "nome": "Atraso na entrega",
+            "avaliacoes": 39,
+            "pct_das_negativas_com_comentario": 16.5,
+            "pct_referencia_marketplace": 18.7,
+            "diferenca_pontos_percentuais": -2.2,
+            "posicao": 5
+          },
+          {
+            "categoria": "incompleto",
+            "nome": "Pedido incompleto",
+            "avaliacoes": 15,
+            "pct_das_negativas_com_comentario": 6.4,
+            "pct_referencia_marketplace": 16.6,
+            "diferenca_pontos_percentuais": -10.2,
+            "posicao": 6
+          },
+          {
+            "categoria": "outro",
+            "nome": "Outro problema",
+            "avaliacoes": 15,
+            "pct_das_negativas_com_comentario": 6.4,
+            "pct_referencia_marketplace": 12.5,
+            "diferenca_pontos_percentuais": -6.1,
+            "posicao": 6
+          },
+          {
+            "categoria": "sem_reclamacao",
+            "nome": "Sem reclamação no texto",
+            "avaliacoes": 7,
+            "pct_das_negativas_com_comentario": 3.0,
+            "pct_referencia_marketplace": 2.4,
+            "diferenca_pontos_percentuais": 0.6,
+            "posicao": 8
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "exemplos_avaliacoes",
+      "entrada": {
+        "categoria": "nao_recebido",
+        "quantidade": 2
+      },
+      "saida": {
+        "categoria": "nao_recebido",
+        "nome": "Não recebido",
+        "total": 86,
+        "exemplos": [
+          {
+            "texto": "Ainda nao recebi meu produto, nao conseguem me informar onde está e ja demorou demais p chegar",
+            "nota": 2,
+            "mes": "2018-04"
+          },
+          {
+            "texto": "Comprei o kit colcha com cortina mais até hoje não chegou o produto",
+            "nota": 2,
+            "mes": "2017-03"
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "exemplos_avaliacoes",
+      "entrada": {
+        "categoria": "produto_diferente",
+        "quantidade": 2
+      },
+      "saida": {
+        "categoria": "produto_diferente",
+        "nome": "Produto errado ou diferente",
+        "total": 52,
+        "exemplos": [
+          {
+            "texto": "O produto que me entregaram não é o mesmo que mostram na tv.pq não tem nada a ver.",
+            "nota": 1,
+            "mes": "2017-11"
+          },
+          {
+            "texto": "Comprei um produto e foi entregue outro de valor correspondente a aproximadamente metade do valor do produto que eu havia comprado.",
+            "nota": 1,
+            "mes": "2018-03"
+          }
+        ]
+      }
+    },
+    {
+      "ferramenta": "exemplos_avaliacoes",
+      "entrada": {
+        "categoria": "defeito_qualidade",
+        "quantidade": 2
+      },
+      "saida": {
+        "categoria": "defeito_qualidade",
+        "nome": "Defeito, avaria ou má qualidade",
+        "total": 50,
+        "exemplos": [
+          {
+            "texto": "Comprei toalhas Karsten e recebi um jogo de tolhas de pessima qualidade, preciso devolver esta mercadoria.",
+            "nota": 1,
+            "mes": "2017-07"
+          },
+          {
+            "texto": "Péssima pelo valor achei que o pano seria melhor",
+            "nota": 1,
+            "mes": "2018-03"
+          }
+        ]
+      }
+    }
+  ]
+}
