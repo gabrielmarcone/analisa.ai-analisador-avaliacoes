@@ -1,0 +1,10 @@
+registrado_em,tarefa,conjunto,esforco,versao_prompt,configuracao,f1_macro,custo_usd_por_1000,latencia_ms_por_avaliacao,falhas,gasto_novo_usd,teste_forcado
+2026-11-12T00:10:30+00:00,problemas,validacao,low,v1,ed4b685ef464,0.8646,0.032,185.7,0,0.008,False
+2026-11-12T00:11:25+00:00,problemas,validacao,medium,v1,04e8cdfaab6d,0.8991,0.0552,401.8,0,0.0138,False
+2026-11-12T00:13:25+00:00,sentimento,validacao,low,v1,f2dab804293b,0.9356,0.0141,81.4,0,0.0523,False
+2026-11-12T00:15:36+00:00,sentimento,validacao,medium,v1,f89a6d7ca000,0.9355,0.0157,93.9,0,0.0583,False
+2026-11-12T00:19:26+00:00,problemas,validacao,high,v1,49eb2bb59620,0.9029,0.0776,546.3,0,0.0194,False
+2026-11-12T00:21:13+00:00,sentimento,validacao,low,v1,f2dab804293b,0.9356,0.0141,81.4,0,0.0,False
+2026-11-12T00:22:33+00:00,sentimento,teste,low,v1,f2dab804293b,0.9348,0.0141,84.7,0,0.0524,False
+2026-11-12T00:22:59+00:00,problemas,validacao,medium,v1,04e8cdfaab6d,0.8991,0.0552,401.8,0,0.0,False
+2026-11-12T00:23:48+00:00,problemas,teste,medium,v1,04e8cdfaab6d,0.8808,0.0491,352.9,0,0.0245,False

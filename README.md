@@ -90,39 +90,62 @@ e LLM) entram na mesma tabela, medidos pelas mesmas funções de `evaluate.py`.
 
 Teste (medido uma vez por modelo):
 
-| Tarefa | Modelo | F1 macro | F1 micro | Latência CPU (ms/aval.) | Custo (US$/1.000) |
+| Tarefa | Modelo | F1 macro | F1 micro | Latência (ms/aval.) | Custo (US$/1.000) |
 |---|---|---:|---:|---:|---:|
-| Sentimento (binário, 3.712 aval.) | TF-IDF + Regressão Logística | 0,930 | – | 0,02 | 0,00 |
-| | BERTimbau ajustado | **0,947** | – | 94 | 0,00 |
-| Tipo de problema (multirrótulo, 500 aval.) | TF-IDF + Regressão Logística | 0,678 | 0,756 | 0,02 | 0,00 |
-| | BERTimbau ajustado | **0,696** | **0,827** | 125 | 0,00 |
+| Sentimento (binário, 3.712 aval.) | TF-IDF + Regressão Logística | 0,930 | – | 0,02 | 0 |
+| | BERTimbau ajustado | **0,947** | – | 94 (CPU) | 0 |
+| | Claude Haiku 5.5 zero-shot | 0,935 | – | 85 (API, lote de 25) | 0,014 |
+| Tipo de problema (multirrótulo, 500 aval.) | TF-IDF + Regressão Logística | 0,678 | 0,756 | 0,02 | 0 |
+| | BERTimbau ajustado | 0,696 | 0,827 | 125 (CPU) | 0 |
+| | Claude Haiku 5.5 zero-shot | **0,881** | **0,902** | 353 (API, lote de 25) | 0,049 |
 
 Modelos publicados no Hugging Face Hub:
 [`gmarconems/bertimbau-olist-sentimento`](https://huggingface.co/gmarconems/bertimbau-olist-sentimento) e
 [`gmarconems/bertimbau-olist-problemas`](https://huggingface.co/gmarconems/bertimbau-olist-problemas).
 
-**Sentimento.** O BERTimbau reduz os erros em cerca de um quarto (acurácia de 94,1% para
-95,6%), com o maior ganho nas negativas (F1 0,90 → 0,92). Validação e teste quase iguais
-(0,948 e 0,947); a melhor época foi a 2 de 3.
+**Tipo de problema: o LLM sem treino vence com folga.** O Claude Haiku 5.5, só com as regras
+do guia de anotação e nenhum exemplo, chega a F1 macro de 0,881 (intervalo de 95% por
+bootstrap: 0,844 a 0,907), contra 0,696 do BERTimbau e 0,678 do baseline, e acerta o
+conjunto exato de rótulos em 78% das avaliações (BERTimbau 67%, baseline 50%). É melhor
+em todas as categorias, inclusive em **"sem reclamação"** (0,84), que o BERTimbau nunca
+previu por ter só 14 exemplos no treino: o LLM só precisa da definição. "Outro problema"
+segue a categoria mais difícil para todos (0,65), por ser a mais subjetiva. Com 750
+avaliações de treino, regras explícitas valem mais que exemplos.
 
-**Tipo de problema.** O BERTimbau é melhor em 7 das 8 categorias no teste, com ganhos de
-2 a 10 pontos (atendimento 0,73 → 0,83; atraso 0,81 → 0,89; defeito 0,72 → 0,81), e acerta
-o conjunto exato de rótulos em 67% das avaliações, contra 50% do baseline. Mas nunca
-prevê **"sem reclamação"**, que tem só 14 exemplos no treino; como a F1 macro dá o mesmo
-peso às 8 categorias, esse zero sozinho tira cerca de 0,05 da média. Na validação
-(250 avaliações, só 8 "sem reclamação"), o baseline chega a ganhar na F1 macro
-(0,712 × 0,677), embora o BERTimbau também lidere a F1 micro (0,753 × 0,808).
-Corrigir a classe rara (peso maior na perda ou limiar por categoria escolhido na
-validação) fica registrado como próximo passo, e não foi feito agora para não medir o
-teste duas vezes.
+**Sentimento: o BERTimbau continua na frente.** O LLM (0,935) fica um pouco acima do
+baseline (0,930) e abaixo do BERTimbau (0,947). Ele acerta 97% das negativas, mas marca
+como negativas 178 avaliações que tinham nota 4 ou 5 ("Só chegou um item", "Embalagem
+muito arranhada"): o texto reclama, a nota não. O rótulo aqui vem das estrelas, e esse
+padrão (quem reclama mas dá nota alta) o BERTimbau aprende nos dados, o LLM não tem como
+saber. Em compensação, o BERTimbau precisou de quase 30 mil exemplos rotulados; o LLM,
+de nenhum.
 
-**Custo.** Em CPU o BERTimbau é milhares de vezes mais lento que o TF-IDF (medido na
-CPU do Colab; em GPU, cerca de 1 ms por avaliação). Para triagem em grande volume, o
-baseline ainda é competitivo; para relatórios por vendedor, a qualidade compensa.
+**Custo e latência.** O LLM custou US$ 0,23 no total, somando as escolhas de esforço na
+validação e o teste (menos de US$ 0,05 por mil avaliações). A latência por avaliação vem
+de lotes de 25; uma chamada isolada leva cerca de 2 segundos (`reviews.llm verificar`). O TF-IDF responde em
+microssegundos sem custo nenhum, e o BERTimbau roda em CPU sem depender de API.
+
+**Escolha do esforço de raciocínio (validação).** Regra fixada antes de ver os números:
+fica o maior F1, mas uma diferença menor que 0,01 conta como empate e vence o mais barato.
+
+| Tarefa | low | medium | high | Escolhido |
+|---|---:|---:|---:|---|
+| Tipo de problema | 0,865 | 0,899 | 0,903 | medium |
+| Sentimento | 0,936 | 0,935 | – | low |
+
+**Cuidado na leitura.** Durante a anotação, cerca de 35 rótulos da **validação** foram
+ajustados com ajuda de um assistente Claude aplicando o guia, o que pode favorecer um
+pouco o Haiku na validação (0,899 lá, 0,881 no teste). No teste, os ajustes foram só
+mecânicos, pelas regras escritas, por isso o número que vale é o do teste.
+
+**Próximos passos registrados.** Dar peso maior às classes raras no BERTimbau (escolhido
+na validação) e testar o LLM com alguns exemplos (few-shot) — ambos exigiriam uma nova
+medição no teste, então ficam como variações declaradas, não como substitutos destes
+resultados.
 
 A curva de aprendizado do baseline
 ([`reports/figures/curva_aprendizado.png`](reports/figures/curva_aprendizado.png))
-ainda sobe com 750 exemplos: mais anotação ajudaria os dois modelos.
+ainda sobe com 750 exemplos: mais anotação ajudaria os modelos treinados.
 
 ## Dados
 
