@@ -83,6 +83,31 @@ python -m reviews.llm sentimento --esforco low --teste     # idem (empate na val
 - O custo é calculado a partir dos tokens que a API informa como cobrados, e há uma trava
   de gasto por execução (`--limite-usd`, padrão US$ 2).
 
+### Agente de relatórios para vendedores (Fase 6)
+
+Um agente escreve, para cada vendedor, um relatório em Markdown sobre as avaliações
+dos clientes: panorama, principais problemas com trechos reais, entregas, evolução no
+tempo, comparação com o marketplace e recomendações.
+
+```bash
+python -m reviews.agent vendedores                    # quem tem mais avaliações negativas
+python -m reviews.agent relatorio --top 3 --simular   # mostra os números, sem chamar a API
+python -m reviews.agent relatorio --top 3             # gera os relatórios em reports/relatorios/
+```
+
+- **Dados primeiro, texto depois.** Os números vêm de funções em pandas
+  (`src/reviews/sellers.py`); o Claude Haiku 5.5 só os consulta como ferramentas e
+  escreve o texto.
+- **Tipos de problema** das negativas do vendedor: classificador da Fase 5 (melhor
+  modelo nessa tarefa), com o mesmo cache. A referência do marketplace são as 1500
+  negativas anotadas à mão.
+- **Verificação automática:** cada número do relatório é conferido com o que as
+  ferramentas devolveram; se algum não bater, o agente reescreve uma vez, e o que
+  sobrar fica marcado no próprio relatório. Cada relatório vem com um arquivo
+  `_ferramentas.json` que registra todas as consultas, para auditoria.
+- Limite de chamadas e de gasto por relatório; os textos das avaliações entram como
+  dados, nunca como instruções.
+
 ### Resultados
 
 Os números ficam em [`reports/resultados.md`](reports/resultados.md), acumulados por
@@ -153,6 +178,8 @@ ainda sobe com 750 exemplos: mais anotação ajudaria os modelos treinados.
 
 [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce), publicado pela Olist no Kaggle sob a licença **CC BY-NC-SA 4.0** (uso não comercial). Os dados não ficam neste repositório: são baixados pelo script. Os modelos treinados com eles seguem a mesma licença.
 
+O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados**, os **modelos** e os **relatórios** gerados a partir deles seguem a CC BY-NC-SA 4.0 da base.
+
 ## Decisões de dados
 
 | Decisão | Motivo |
@@ -175,16 +202,19 @@ ainda sobe com 750 exemplos: mais anotação ajudaria os modelos treinados.
 | LLM zero-shot com as regras do guia, mas sem nenhum exemplo rotulado | É o mesmo critério que o anotador seguiu; exemplos tornariam o teste "few-shot". |
 | LLM classifica em lotes de 25 com saída em JSON validada | 25 vezes menos chamadas, e as instruções são pagas uma vez por lote; resposta fora do formato é refeita, e o que falhar fica contado. |
 | Latência dos modelos locais medida em CPU | É o hardware da demo; a latência em GPU do BERTimbau fica registrada à parte. |
+| Relatórios: números calculados em pandas; o LLM só consulta e escreve | Um modelo de linguagem não deve fazer contas; assim cada número tem origem rastreável. |
+| Cada número do relatório é conferido automaticamente com as ferramentas | Impede números inventados ("alucinação"); o que não bater fica marcado. |
+| Relatório por vendedor só com pedidos de um único vendedor | Num pedido com vários vendedores, a avaliação não diz de quem é a culpa. |
 
 ## Estrutura
 
 ```
-src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM)
+src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM, agente)
 docs/             guia de anotação
 annotations/      fila e rótulos da anotação (só IDs, sem texto)
 notebooks/        análise exploratória (01) e treino do BERTimbau no Colab (02)
 splits/           IDs da divisão treino/validação/teste
-reports/          resultados por modelo (`resultados.md`), figuras e relatórios
+reports/          resultados por modelo (`resultados.md`), figuras e relatórios dos vendedores
 models/           modelos treinados (fora do Git)
 tests/            testes automatizados
 ```
