@@ -133,8 +133,47 @@ def test_entregas(df):
     assert out["diferenca_pct_atraso_pontos_percentuais"] == 0.0
 
 
+def test_tendencia_e_meses_extremos(monkeypatch):
+    monkeypatch.setattr(sellers, "MIN_MONTH_REVIEWS", 2)
+    rows = []
+    # 7 meses; nos 3 últimos as negativas caem. 2017-04 tem só 1 avaliação (fora do ranking).
+    plan = {
+        "2017-01": (2, 1),
+        "2017-02": (2, 2),
+        "2017-03": (2, 1),
+        "2017-04": (1, 1),
+        "2017-05": (2, 0),
+        "2017-06": (4, 1),
+        "2017-07": (2, 0),
+    }
+    for month, (n, neg) in plan.items():
+        for i in range(n):
+            bad = i < neg
+            rows.append(
+                {
+                    "review_id": f"{month}-{i}",
+                    "seller_id": "A",
+                    "mes": month,
+                    "sentimento": "negativa" if bad else "positiva",
+                    "review_score": 1 if bad else 5,
+                }
+            )
+    out = sellers.monthly(pd.DataFrame(rows), "A")
+    assert out["meses_relevantes"] == 6
+    assert out["mes_com_mais_negativas"]["mes"] == "2017-02"  # 100%, com volume mínimo
+    assert out["mes_com_menos_negativas"]["mes"] == "2017-05"  # 0%; empate com 07: o primeiro
+    assert out["mes_com_mais_avaliacoes"]["mes"] == "2017-06"
+    trend = out["tendencia"]
+    assert trend["ultimos_3_meses"]["meses"] == ["2017-05", "2017-06", "2017-07"]
+    assert trend["ultimos_3_meses"]["pct_negativas"] == 12.5  # 1 de 8
+    assert trend["3_meses_anteriores"]["pct_negativas"] == 80.0  # 4 de 5
+    assert trend["diferenca_pct_negativas_pontos_percentuais"] == -67.5
+
+
 def test_evolucao_mensal(df):
-    meses = sellers.monthly(df, "B")["meses"]
+    out = sellers.monthly(df, "B")
+    assert out["tendencia"] is None and out["mes_com_mais_negativas"] is None  # pouco dado
+    meses = out["meses"]
     assert [m["mes"] for m in meses] == ["2017-01", "2017-03"]
     assert meses[1] == {"mes": "2017-03", "avaliacoes": 2, "pct_negativas": 50.0, "nota_media": 2.0}
 
@@ -160,6 +199,8 @@ def test_referencia_problemas_e_exemplos(tmp_path, df):
     out = sellers.problems(neg, matrix, ref)
     first = out["categorias"][0]
     assert first["categoria"] == "atraso" and first["pct_das_negativas"] == 100.0
+    assert first["posicao"] == 1 and out["categorias"][1]["posicao"] == 2
+    assert out["categorias"][-1]["posicao"] == 3  # seis categorias empatadas em zero
     assert first["diferenca_pontos_percentuais"] == 50.0
     with pytest.raises(ValueError, match="não combina"):
         sellers.problems(neg, matrix[:1], ref)

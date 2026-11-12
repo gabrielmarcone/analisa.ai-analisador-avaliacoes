@@ -40,6 +40,27 @@ def test_numeros_aceitos_e_rejeitados():
     assert missing == ["31,5", "2018"] and total == 3  # 28 = arredondamento de 27,94
 
 
+def test_citacoes_conferidas_palavra_por_palavra():
+    outputs = [
+        {"categorias": [{"categoria": "produto_diferente", "nome": "Produto errado ou diferente"}]},
+        {
+            "exemplos": [
+                {"texto": "Comprei 3 cadeiras, todas vieram faltando peças. Não consegui trocar."}
+            ]
+        },
+    ]
+    ok = (
+        'Em "produto diferente" (curto, ignorado) e "Produto errado ou diferente", um cliente '
+        'disse: "Comprei 3 cadeiras, todas vieram faltando peças... Não consegui trocar." e '
+        "“todas vieram faltando peças”."
+    )
+    assert agent.unsupported_quotes(ok, outputs) == []
+    bad = 'Um cliente disse: "Comprei 3 cadeiras e nenhuma chegou montada."'
+    assert agent.unsupported_quotes(bad, outputs) == [
+        "Comprei 3 cadeiras e nenhuma chegou montada."
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Cliente falso: classificador (saída JSON) e agente (ferramentas)
 # ---------------------------------------------------------------------------
@@ -140,6 +161,20 @@ def test_laco_com_ferramentas_paralelas_erro_e_reescrita(df):
     assert [c["ferramenta"] for c in tools.calls] == ["resumo_vendedor", "entregas"]
 
 
+def test_citacao_inventada_pede_reescrita(df):
+    invented = [_text('## Resumo\n- Um cliente disse: "o produto chegou quebrado e sem nota".')]
+    fixed = [_text(GOOD)]
+    script = [
+        ("tool_use", [_tool_use("t1", "resumo_vendedor")]),
+        ("end_turn", invented),
+        ("end_turn", fixed),
+    ]
+    client = FakeClient(script)
+    result = agent.run_agent(client, _tools(df))
+    assert result.revisions == 1 and result.unsupported_quotes == []
+    assert "trechos entre aspas" in client.agent_calls[2]["messages"][-1]["content"]
+
+
 def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(df):
     bad = [_text("## Resumo\n- 99% negativas.")]
     script = [
@@ -149,6 +184,8 @@ def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(df):
     ]
     result = agent.run_agent(FakeClient(script), _tools(df))
     assert result.unsupported == ["99"] and result.revisions == 1
+    note = agent.methodology(0.0, result, 2)
+    assert "⚠️ Sem correspondência nos dados: números 99" in note
 
 
 def test_paradas_inesperadas_e_limites(df, monkeypatch):

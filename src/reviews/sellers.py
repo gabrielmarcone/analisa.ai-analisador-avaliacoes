@@ -29,6 +29,7 @@ SELLERS_FILE = "olist_sellers_dataset.csv"
 
 NEGATIVE = "negativa"
 MIN_REVIEWS_FOR_RANKING = 30  # vendedores com menos avaliações não entram no percentil
+MIN_MONTH_REVIEWS = 20  # meses com menos avaliações não entram em "pior/melhor mês"
 MAX_QUOTE_CHARS = 280
 NO_CATEGORY = "sem categoria"
 
@@ -247,7 +248,17 @@ def delivery(df: pd.DataFrame, seller_id: str) -> dict:
     }
 
 
+def _period(group: pd.DataFrame, months: list[str]) -> dict:
+    return {
+        "meses": months,
+        "avaliacoes": int(len(group)),
+        "pct_negativas": _negative_share(group),
+        "nota_media": _mean(group["review_score"]),
+    }
+
+
 def monthly(df: pd.DataFrame, seller_id: str) -> dict:
+    """Série mensal e um resumo da tendência já calculado (o LLM não lê tendência sozinho)."""
     part = seller_frame(df, seller_id)
     rows = []
     for month, group in part.groupby("mes", sort=True):
@@ -259,7 +270,37 @@ def monthly(df: pd.DataFrame, seller_id: str) -> dict:
                 "nota_media": _mean(group["review_score"]),
             }
         )
-    return {"meses": rows, "observacao": "meses com poucas avaliações oscilam muito"}
+
+    relevant = [r for r in rows if r["avaliacoes"] >= MIN_MONTH_REVIEWS]
+    worst = max(relevant, key=lambda r: r["pct_negativas"], default=None)
+    best = min(relevant, key=lambda r: r["pct_negativas"], default=None)
+    biggest = max(rows, key=lambda r: r["avaliacoes"], default=None)
+
+    months = [r["mes"] for r in rows]
+    trend = None
+    if len(months) >= 6:
+        last, previous = months[-3:], months[-6:-3]
+        now = _period(part[part["mes"].isin(last)], last)
+        before = _period(part[part["mes"].isin(previous)], previous)
+        trend = {
+            "ultimos_3_meses": now,
+            "3_meses_anteriores": before,
+            "diferenca_pct_negativas_pontos_percentuais": _diff(
+                now["pct_negativas"], before["pct_negativas"]
+            ),
+            "diferenca_nota": _diff(now["nota_media"], before["nota_media"], 2),
+        }
+
+    return {
+        "meses": rows,
+        "minimo_de_avaliacoes_para_mes_relevante": MIN_MONTH_REVIEWS,
+        "meses_relevantes": len(relevant),
+        "mes_com_mais_negativas": worst,
+        "mes_com_menos_negativas": best,
+        "mes_com_mais_avaliacoes": biggest,
+        "tendencia": trend,
+        "observacao": "meses com menos avaliações que o mínimo oscilam muito",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -301,8 +342,11 @@ def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict
             }
         )
     rows.sort(key=lambda r: -r["avaliacoes"])
+    for row in rows:  # empates ficam com a mesma posição
+        row["posicao"] = 1 + sum(other["avaliacoes"] > row["avaliacoes"] for other in rows)
     return {
         "avaliacoes_negativas_classificadas": n,
+        "ordem": "da categoria mais citada para a menos citada (campo posicao)",
         "referencia_marketplace": (
             f"{reference['avaliacoes']} avaliações negativas sorteadas e anotadas à mão"
         ),
