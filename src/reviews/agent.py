@@ -52,6 +52,8 @@ SYSTEM_PROMPT = """Você é analista de experiência do cliente de um marketplac
 de comércio eletrônico. Escreva um relatório para o próprio vendedor sobre as avaliações \
 dos clientes dele, em português, com tom profissional e construtivo.
 
+Fale diretamente com o vendedor, tratando-o por "você".
+
 Use as ferramentas para buscar os dados. Consulte todas as que forem úteis antes de escrever; \
 você pode chamar várias de uma vez.
 
@@ -71,6 +73,10 @@ use o campo `posicao` de `problemas_relatados`; para melhor/pior mês, mês de m
 tendência recente, use `mes_com_mais_negativas`, `mes_com_menos_negativas`, \
 `mes_com_mais_avaliacoes` e `tendencia` de `evolucao_mensal`. Não afirme que algo é "o maior", \
 "o mais alto desde..." ou que "cresceu de forma consistente" se isso não estiver num desses campos.
+- Ao citar um trecho, apresente-o como exemplo do tipo de problema de onde ele veio (campo \
+`nome` de `exemplos_avaliacoes`). Um trecho é um exemplo, não "o que os clientes dizem": não \
+generalize a partir dele.
+- Não mencione no texto nomes de ferramentas ou de campos (como posicao ou tendencia).
 - Diga o que os dados mostram e separe hipóteses de fatos ("pode indicar", "vale verificar").
 - Amostras pequenas (meses ou categorias com poucas avaliações) não sustentam conclusões \
 fortes: diga isso quando usar.
@@ -312,6 +318,7 @@ class AgentResult:
     numbers_checked: int
     revisions: int
     unsupported_quotes: list[str] = field(default_factory=list)
+    revision_reasons: list[str] = field(default_factory=list)
 
     @property
     def cost_usd(self) -> float:
@@ -334,7 +341,7 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
     ]
     usage_total = {key: 0 for key in [*llm.PRICES_USD_PER_MTOK, "thinking_tokens"]}
     calls = revisions = 0
-    body, unsupported, checked, bad_quotes = "", [], 0, []
+    body, unsupported, checked, bad_quotes, reasons = "", [], 0, [], []
 
     while calls < MAX_CALLS:
         response = client.messages.create(
@@ -404,6 +411,7 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
                     "estes trechos entre aspas não aparecem nas avaliações devolvidas: "
                     + " | ".join(bad_quotes)
                 )
+            reasons.extend(problems)
             messages.append(
                 {
                     "role": "user",
@@ -421,7 +429,9 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
     else:
         raise RuntimeError(f"O agente passou de {MAX_CALLS} chamadas sem terminar.")
 
-    return AgentResult(body, calls, usage_total, unsupported, checked, revisions, bad_quotes)
+    return AgentResult(
+        body, calls, usage_total, unsupported, checked, revisions, bad_quotes, reasons
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +497,7 @@ def write_report(
         "esforco": AGENT_EFFORT,
         "chamadas": result.calls,
         "reescritas": result.revisions,
+        "motivos_das_reescritas": result.revision_reasons,
         "numeros_conferidos": result.numbers_checked,
         "numeros_sem_fonte": result.unsupported,
         "citacoes_sem_fonte": result.unsupported_quotes,

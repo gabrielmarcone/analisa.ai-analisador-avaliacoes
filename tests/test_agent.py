@@ -173,6 +173,7 @@ def test_citacao_inventada_pede_reescrita(df):
     result = agent.run_agent(client, _tools(df))
     assert result.revisions == 1 and result.unsupported_quotes == []
     assert "trechos entre aspas" in client.agent_calls[2]["messages"][-1]["content"]
+    assert result.revision_reasons and "chegou quebrado" in result.revision_reasons[0]
 
 
 def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(df):
@@ -216,6 +217,7 @@ def test_relatorio_completo_ponta_a_ponta(df, tmp_path, monkeypatch):
     assert "todos conferem" in text and "\r\n" not in text
     audit = json.loads((tmp_path / "rel" / "vendedor_A_ferramentas.json").read_text("utf-8"))
     assert audit["numeros_sem_fonte"] == [] and len(audit["ferramentas"]) == 2
+    assert audit["motivos_das_reescritas"] == []
     problems = audit["ferramentas"][1]["saida"]
     assert problems["categorias"][0]["categoria"] == "atraso"
 

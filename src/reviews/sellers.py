@@ -299,7 +299,10 @@ def monthly(df: pd.DataFrame, seller_id: str) -> dict:
         "mes_com_menos_negativas": best,
         "mes_com_mais_avaliacoes": biggest,
         "tendencia": trend,
-        "observacao": "meses com menos avaliações que o mínimo oscilam muito",
+        "observacao": (
+            "meses com menos avaliações que o mínimo oscilam muito e ficam fora de "
+            "mes_com_mais_negativas e mes_com_menos_negativas; a tendência usa todos os meses"
+        ),
     }
 
 
