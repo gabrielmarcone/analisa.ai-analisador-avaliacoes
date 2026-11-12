@@ -93,6 +93,50 @@ def test_ranking_de_problemas_conferido():
     assert agent.wrong_rankings("O mais citado é X.", []) == []  # sem a ferramenta: não julga
 
 
+def test_recomendacao_apoiada_so_em_problema_secundario_e_marcada():
+    # Tabela real do vendedor 6560211a (posição, diferença para a referência).
+    table = {
+        "defeito_qualidade": (1, 20.0),
+        "atendimento": (2, -3.2),
+        "nao_recebido": (3, -13.7),
+        "outro": (4, 7.6),
+        "produto_diferente": (5, -1.8),
+        "atraso": (6, -8.2),
+        "incompleto": (7, -7.4),
+        "sem_reclamacao": (8, 3.3),
+    }
+    rows = [
+        {
+            "categoria": c,
+            "nome": c.replace("_", " ").title(),
+            "posicao": pos,
+            "diferenca_pontos_percentuais": diff,
+        }
+        for c, (pos, diff) in table.items()
+    ]
+    outputs = [{"avaliacoes_negativas_classificadas": 229, "categorias": rows}]
+    report = (
+        "## Resumo\n- Produto errado ou diferente está perto da referência.\n\n"
+        "## Recomendações\n\n"
+        "1. **Revisar defeitos antes do envio.** Defeito aparece em 37,1% das negativas.\n"
+        "2. **Investigar as negativas com pedido no prazo.** A diferença é de 4,4 pontos.\n"
+        "3. **Revisar a descrição dos anúncios.** Produto errado ou diferente aparece em "
+        "15,7%, perto da referência, mas merece atenção.\n"
+        '4. **Analisar "outro problema".** Está 7,6 pontos acima da referência.\n'
+        "5. **Manter os prazos.** Seus atrasos estão abaixo do marketplace.\n"
+    )
+    weak = agent.weak_recommendations(report, outputs)
+    assert weak == [
+        "«Revisar a descrição dos anúncios.» "
+        "(Produto Diferente: 5º mais citado, -1,8 pp da referência)"
+    ]
+    # Junto com um problema que tem apoio, passa; fora da seção, não é julgado.
+    ok = report.replace("Produto errado ou diferente aparece", "Produto errado e defeito aparecem")
+    assert agent.weak_recommendations(ok, outputs) == []
+    assert agent.weak_recommendations(report.split("## Recomendações")[0], outputs) == []
+    assert agent.weak_recommendations(report, []) == []
+
+
 def test_aspas_que_so_nomeiam_categoria_nao_sao_citacao():
     outputs = [{"exemplos": [{"texto": "Esse produto veio com defeito"}]}]
     text = (
@@ -219,6 +263,26 @@ def test_citacao_inventada_pede_reescrita(data):
     assert result.revisions == 1 and result.unsupported_quotes == []
     assert "trechos entre aspas" in client.agent_calls[2]["messages"][-1]["content"]
     assert result.revision_reasons and "chegou quebrado" in result.revision_reasons[0]
+
+
+def test_recomendacao_sem_apoio_pede_reescrita_e_fica_registrada(data):
+    tools = _tools(data)
+    tools.matrix[:] = 0
+    tools.matrix[0, [0, 4, 5]] = 1  # atraso, defeito e atendimento
+    tools.matrix[1, 1] = 1  # não recebido; o resto empata em 5º, 10 pontos abaixo da ref.
+    weak = "## Recomendações\n\n1. **Reduzir pedidos incompletos.** Vale conferir."
+    script = [
+        ("tool_use", [_tool_use("t1", "problemas_relatados")]),
+        ("end_turn", [_text(weak)]),
+        ("end_turn", [_text(weak)]),
+    ]
+    client = FakeClient(script)
+    result = agent.run_agent(client, tools)
+    assert result.revisions == 1 and len(result.weak_recommendations) == 1
+    assert "Reduzir pedidos incompletos." in result.weak_recommendations[0]
+    assert "recomendações se apoiam" in client.agent_calls[2]["messages"][-1]["content"]
+    note = agent.methodology(agent.Cost(0.0, 0.0), result, 2)
+    assert "⚠️ Sem correspondência nos dados: recomendações «Reduzir" in note
 
 
 def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(data):

@@ -98,6 +98,13 @@ são piores.
 da série").
 - Diferenças menores que 2 pontos percentuais deixam o vendedor no mesmo patamar do \
 marketplace: não recomende ação por causa delas.
+- Cada recomendação se apoia num dado do relatório: um dos 3 problemas mais citados, um \
+problema 2 pontos percentuais ou mais acima da referência, ou uma diferença de entrega, de \
+categoria de produto ou de evolução de pelo menos 2 pontos percentuais. Um tipo de problema \
+fora dos 3 mais citados e sem estar 2 pontos acima da referência não vira recomendação.
+- Afirme causa e efeito só quando um campo os mede (como o efeito do atraso nas notas). Não \
+atribua melhoras ou pioras a ações do vendedor nem a fatores que as ferramentas não medem, \
+como a duração do atraso ou a categoria de produto em que um tipo de problema acontece.
 - Não mencione no texto nomes de ferramentas ou de campos (como posicao ou tendencia).
 - Diga o que os dados mostram e separe hipóteses de fatos ("pode indicar", "vale verificar").
 - Amostras pequenas (meses ou categorias com poucas avaliações) não sustentam conclusões \
@@ -363,6 +370,52 @@ def wrong_rankings(report: str, outputs: list[dict]) -> list[str]:
     return wrong
 
 
+RECOMMENDATION_TOP_K = 3  # recomendação sobre tipo de problema: um dos 3 mais citados...
+RECOMMENDATION_MIN_PP = 2.0  # ...ou pelo menos 2 pontos acima da referência
+_RECOMMENDATIONS = re.compile(r"(?ms)^##\s*Recomenda\w*\s*$(.*?)(?=^##\s|\Z)")
+_ITEM = re.compile(r"(?m)^\s*(?:\d+[.)]|[-*])\s")
+# "atraso" fica de fora: numa recomendação ele quase sempre fala do atraso dos pedidos
+# (ferramenta de entregas), e não do tipo de problema "atraso na entrega".
+_RECOMMENDATION_CATEGORIES = {c: p for c, p in _CATEGORY_PATTERNS.items() if c != "atraso"}
+
+
+def weak_recommendations(report: str, outputs: list[dict]) -> list[str]:
+    """Recomendações apoiadas só em tipos de problema secundários e no mesmo patamar.
+
+    Um item de "Recomendações" que cita tipos de problema passa se pelo menos um deles
+    estiver entre os 3 mais citados ou 2 pontos acima da referência. Itens que não citam
+    tipo de problema (entregas, categorias de produto, evolução) não são julgados aqui.
+    """
+    problems = next((o for o in outputs if "avaliacoes_negativas_classificadas" in o), None)
+    section = _RECOMMENDATIONS.search(report)
+    if problems is None or section is None:
+        return []
+    rows = {row["categoria"]: row for row in problems["categorias"]}
+    parts = _ITEM.split(section.group(1))
+    items = parts[1:] if len(parts) > 1 else parts
+    weak = []
+    for item in items:
+        plain = _plain(item)
+        named = [
+            c for c, pattern in _RECOMMENDATION_CATEGORIES.items() if re.search(pattern, plain)
+        ]
+        if not named or any(
+            rows[c]["posicao"] <= RECOMMENDATION_TOP_K
+            or (rows[c]["diferenca_pontos_percentuais"] or 0) >= RECOMMENDATION_MIN_PP
+            for c in named
+        ):
+            continue
+        details = "; ".join(
+            f"{rows[c]['nome']}: {rows[c]['posicao']}º mais citado, "
+            f"{fmt_br(rows[c]['diferenca_pontos_percentuais'], 1)} pp da referência"
+            for c in named
+        )
+        bold = re.match(r"\s*\*\*(.+?)\*\*", item)
+        title = bold.group(1) if bold else item.strip().splitlines()[0][:80]
+        weak.append(f"«{title}» ({details})")
+    return weak
+
+
 # ---------------------------------------------------------------------------
 # Classificação das negativas do vendedor
 # ---------------------------------------------------------------------------
@@ -466,6 +519,7 @@ class AgentResult:
     unsupported_quotes: list[str] = field(default_factory=list)
     revision_reasons: list[str] = field(default_factory=list)
     wrong_rankings: list[str] = field(default_factory=list)
+    weak_recommendations: list[str] = field(default_factory=list)
 
     @property
     def cost_usd(self) -> float:
@@ -489,6 +543,7 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
     usage_total = {key: 0 for key in [*llm.PRICES_USD_PER_MTOK, "thinking_tokens"]}
     calls = revisions = 0
     body, unsupported, checked, bad_quotes, reasons, rankings = "", [], 0, [], [], []
+    weak: list[str] = []
 
     while calls < MAX_CALLS:
         response = client.messages.create(
@@ -544,9 +599,10 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
         unsupported, checked = unsupported_numbers(body, outputs)
         bad_quotes = unsupported_quotes(body, outputs)
         rankings = wrong_rankings(body, outputs)
+        weak = weak_recommendations(body, outputs)
         if not body:
             raise RuntimeError("O modelo terminou sem escrever o relatório.")
-        if (unsupported or bad_quotes or rankings) and revisions < MAX_REVISIONS:
+        if (unsupported or bad_quotes or rankings or weak) and revisions < MAX_REVISIONS:
             revisions += 1
             problems = []
             if unsupported:
@@ -563,6 +619,12 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
                 problems.append(
                     "estas frases chamam de mais citado um problema fora do topo: "
                     + " | ".join(rankings)
+                )
+            if weak:
+                problems.append(
+                    "estas recomendações se apoiam só em tipos de problema que não estão entre "
+                    f"os {RECOMMENDATION_TOP_K} mais citados nem acima da referência; retire-as "
+                    "ou apoie-as em outro dado do relatório: " + " | ".join(weak)
                 )
             reasons.extend(problems)
             messages.append(
@@ -583,7 +645,16 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
         raise RuntimeError(f"O agente passou de {MAX_CALLS} chamadas sem terminar.")
 
     return AgentResult(
-        body, calls, usage_total, unsupported, checked, revisions, bad_quotes, reasons, rankings
+        body=body,
+        calls=calls,
+        usage=usage_total,
+        unsupported=unsupported,
+        numbers_checked=checked,
+        revisions=revisions,
+        unsupported_quotes=bad_quotes,
+        revision_reasons=reasons,
+        wrong_rankings=rankings,
+        weak_recommendations=weak,
     )
 
 
@@ -602,10 +673,12 @@ def methodology(
         problems.append("citações " + " | ".join(result.unsupported_quotes))
     if result.wrong_rankings:
         problems.append("ranking " + " | ".join(result.wrong_rankings))
+    if result.weak_recommendations:
+        problems.append("recomendações " + " | ".join(result.weak_recommendations))
     check = (
-        f"Os {result.numbers_checked} números, as citações e as menções ao problema mais "
-        "citado foram conferidos automaticamente com os resultados das ferramentas: "
-        "todos conferem."
+        f"Os {result.numbers_checked} números, as citações, as menções ao problema mais "
+        "citado e as recomendações sobre tipos de problema foram conferidos automaticamente "
+        "com os resultados das ferramentas: todos conferem."
         if not problems
         else "⚠️ Sem correspondência nos dados: " + "; ".join(problems) + ". Confira antes de usar."
     )
@@ -671,6 +744,7 @@ def write_report(
         "numeros_sem_fonte": result.unsupported,
         "citacoes_sem_fonte": result.unsupported_quotes,
         "rankings_errados": result.wrong_rankings,
+        "recomendacoes_sem_apoio": result.weak_recommendations,
         "custo_usd": {
             "classificacao": round(classification.total_usd, 6),
             "agente": round(result.cost_usd, 6),
@@ -708,7 +782,12 @@ def generate(
     tools = SellerTools(data, seller_id, negatives, matrix, distribution)
     result = run_agent(client, tools, limit_usd - cost.new_usd)
     path = write_report(seller_id, result, tools, cost, output_dir, reference_cost)
-    problems = result.unsupported + result.unsupported_quotes + result.wrong_rankings
+    problems = (
+        result.unsupported
+        + result.unsupported_quotes
+        + result.wrong_rankings
+        + result.weak_recommendations
+    )
     status = "todos conferem" if not problems else f"A CONFERIR: {problems}"
     report_cost = Cost(cost.total_usd + result.cost_usd, cost.new_usd + result.cost_usd)
     print(
