@@ -1,8 +1,9 @@
 """Agente que escreve relatórios de avaliações para vendedores.
 
 Como funciona:
-1. As avaliações negativas do vendedor são classificadas por tipo de problema com o
-   LLM da Fase 5 (mesma configuração escolhida na validação, com o mesmo cache).
+1. As avaliações negativas com comentário do vendedor são classificadas por tipo de
+   problema com o LLM da Fase 5 (mesma configuração escolhida na validação, com o
+   mesmo cache).
 2. O Claude Haiku 5.5 recebe ferramentas que devolvem números calculados com pandas
    (``sellers.py``) e trechos reais de avaliações. Ele decide o que consultar e
    escreve o relatório em Markdown.
@@ -59,6 +60,15 @@ Fale diretamente com o vendedor, tratando-o por "você".
 Use as ferramentas para buscar os dados. Consulte todas as que forem úteis antes de escrever; \
 você pode chamar várias de uma vez.
 
+## Bases dos números
+- Nota média, % de negativas, comparação com o marketplace e evolução mensal usam todas as \
+avaliações, com ou sem comentário.
+- Tipos de problema e trechos usam só as avaliações negativas com comentário, as únicas com \
+texto. Ao dar essas porcentagens, deixe claro que são das negativas com comentário.
+- O atraso é medido em todos os pedidos entregues; as notas com e sem atraso vêm das \
+avaliações desses pedidos. Para comparar com o marketplace, use as diferenças prontas, tanto \
+para os pedidos com atraso quanto para os entregues no prazo.
+
 ## Regras de números (obrigatórias)
 - Todo número do relatório tem que vir de uma ferramenta, exatamente como ela devolveu ou \
 arredondado. Não faça contas: diferenças e comparações já vêm prontas nos campos \
@@ -81,8 +91,9 @@ generalize a partir dele. Recomendações se apoiam em números agregados; detal
 trecho (um modelo, uma função do produto, um caso de nota fiscal) não viram recomendação.
 - "Mais citado" e "principal problema" seguem só a posição (número de avaliações). Problemas \
 acima da referência são outra coisa: chame-os de "acima da referência", não de "mais citados".
-- Só relacione volume de vendas com negativas usando `relacao_volume_negativas`; sem relação \
-clara, não sugira que meses movimentados são piores.
+- Só relacione volume de vendas com negativas usando `relacao_volume_negativas`, que mede a \
+proporção de negativas (não o número); sem relação clara, não sugira que meses movimentados \
+são piores.
 - Não compare com períodos que não estejam nos campos prontos (por exemplo, "acima do início \
 da série").
 - Diferenças menores que 2 pontos percentuais deixam o vendedor no mesmo patamar do \
@@ -97,8 +108,10 @@ fortes: diga isso quando usar.
 ## Resumo — 3 a 5 tópicos com o essencial.
 ## Panorama — volume, nota média e distribuição, categorias de produto.
 ## Principais problemas — tabela ordenada do mais citado para o menos citado, com número de \
-avaliações, % das negativas e comparação com a referência; 1 ou 2 trechos de exemplo.
-## Entregas — atraso e o efeito dele nas notas, comparado ao marketplace.
+avaliações, % das negativas com comentário e comparação com a referência; 1 ou 2 trechos de \
+exemplo.
+## Entregas — % dos pedidos entregues com atraso e o efeito do atraso nas notas, comparados ao \
+marketplace.
 ## Evolução — últimos 3 meses × 3 anteriores, pior e melhor mês (sem listar todos os meses).
 ## Recomendações — 3 a 5 ações concretas, cada uma ligada a um dado do relatório.
 
@@ -107,8 +120,8 @@ Entre 450 e 800 palavras. Não escreva seção de metodologia: ela é acrescenta
 TOOLS = [
     {
         "name": "resumo_vendedor",
-        "description": "Volume de avaliações com comentário, nota média, % negativas/neutras/"
-        "positivas, período coberto e principais categorias de produto do vendedor.",
+        "description": "Volume de avaliações (todas e com comentário), nota média, % negativas/"
+        "neutras/positivas, período coberto e principais categorias de produto do vendedor.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -119,8 +132,8 @@ TOOLS = [
     },
     {
         "name": "entregas",
-        "description": "Atraso nas entregas (% atrasadas, mediana de dias) e notas com e sem "
-        "atraso, do vendedor e do marketplace.",
+        "description": "% dos pedidos entregues com atraso e mediana de dias de atraso, e notas "
+        "das avaliações com e sem atraso, do vendedor e do marketplace.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -130,13 +143,14 @@ TOOLS = [
     },
     {
         "name": "problemas_relatados",
-        "description": "Tipos de problema nas avaliações negativas do vendedor (classificadas "
-        "automaticamente) e a mesma distribuição numa referência do marketplace.",
+        "description": "Tipos de problema nas avaliações negativas com comentário do vendedor "
+        "(classificadas automaticamente) e a mesma distribuição numa referência do marketplace.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "exemplos_avaliacoes",
-        "description": "Trechos reais de avaliações negativas do vendedor de um tipo de problema.",
+        "description": "Trechos reais de avaliações negativas com comentário do vendedor, de um "
+        "tipo de problema.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -158,7 +172,7 @@ TOOLS = [
 class SellerTools:
     """Executa as ferramentas para um vendedor e guarda tudo o que foi devolvido."""
 
-    df: pd.DataFrame
+    data: sellers.SellerData
     seller_id: str
     negatives: pd.DataFrame
     matrix: np.ndarray
@@ -166,13 +180,14 @@ class SellerTools:
     calls: list[dict] = field(default_factory=list)
 
     def run(self, name: str, tool_input: dict) -> dict:
+        df, orders = self.data.reviews, self.data.orders
         functions: dict[str, Callable[[], dict]] = {
-            "resumo_vendedor": lambda: sellers.summary(self.df, self.seller_id),
+            "resumo_vendedor": lambda: sellers.summary(df, self.seller_id),
             "comparar_com_marketplace": lambda: sellers.compare_with_marketplace(
-                self.df, self.seller_id
+                df, self.seller_id
             ),
-            "entregas": lambda: sellers.delivery(self.df, self.seller_id),
-            "evolucao_mensal": lambda: sellers.monthly(self.df, self.seller_id),
+            "entregas": lambda: sellers.delivery(df, orders, self.seller_id),
+            "evolucao_mensal": lambda: sellers.monthly(df, self.seller_id),
             "problemas_relatados": lambda: sellers.problems(
                 self.negatives, self.matrix, self.reference
             ),
@@ -353,6 +368,17 @@ def wrong_rankings(report: str, outputs: list[dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class Cost:
+    """Custo de uma etapa: do zero (inclui lotes que vieram do cache) e gasto agora."""
+
+    total_usd: float
+    new_usd: float
+
+    def __str__(self) -> str:
+        return f"US$ {self.total_usd:.4f} (gasto agora: US$ {self.new_usd:.4f})"
+
+
 def classify_negatives(
     df: pd.DataFrame,
     seller_id: str,
@@ -360,12 +386,11 @@ def classify_negatives(
     limit_usd: float = DEFAULT_LIMIT_USD,
     cache_dir: Path = llm.CACHE_DIR,
     progress: Callable[[str], None] = print,
-) -> tuple[pd.DataFrame, np.ndarray, float]:
-    """Tipos de problema das negativas do vendedor, com o classificador da Fase 5."""
-    negatives = sellers.seller_frame(df, seller_id)
-    negatives = negatives[negatives["sentimento"] == sellers.NEGATIVE].reset_index(drop=True)
+) -> tuple[pd.DataFrame, np.ndarray, Cost]:
+    """Tipos de problema das negativas com comentário, com o classificador da Fase 5."""
+    negatives = sellers.commented_negatives(df, seller_id)
     if negatives.empty:
-        return negatives, np.zeros((0, len(LABELS)), dtype=int), 0.0
+        return negatives, np.zeros((0, len(LABELS)), dtype=int), Cost(0.0, 0.0)
     config = llm.RunConfig(task=TASK_PROBLEMS, effort=PROBLEMS_EFFORT)
     split = f"vendedor_{seller_id[:8]}"
     pending = llm._pending_batches(negatives, config, split, cache_dir)
@@ -376,7 +401,7 @@ def classify_negatives(
         negatives, config, split, classifier, llm.DEFAULT_PARALLEL, limit_usd, cache_dir, progress
     )
     matrix = llm.problems_to_matrix(run.predictions)
-    return negatives, matrix, llm.cost_usd(llm._sum_usage(run.records))
+    return negatives, matrix, Cost(llm.cost_usd(llm._sum_usage(run.records)), run.new_cost_usd)
 
 
 def build_reference(
@@ -385,14 +410,15 @@ def build_reference(
     limit_usd: float = DEFAULT_LIMIT_USD,
     cache_dir: Path = llm.CACHE_DIR,
     progress: Callable[[str], None] = print,
-) -> tuple[dict, float]:
+) -> tuple[dict, Cost]:
     """Referência do marketplace medida com o MESMO classificador usado no vendedor.
 
-    Usa as 1500 negativas sorteadas do projeto. Comparar o vendedor (rotulado pelo LLM)
-    com rótulos humanos misturaria duas réguas: nas 750 avaliações de validação e teste,
-    o LLM marca "outro problema" em 11,6% delas e a anotação, em 10,0%; essa diferença
-    apareceria como se fosse do vendedor. Validação e teste já estão no cache da Fase 5
-    (mesmos lotes); só o treino é classificado aqui.
+    Usa as 1500 negativas com comentário sorteadas do projeto. Comparar o vendedor
+    (rotulado pelo LLM) com rótulos humanos misturaria duas réguas: nas 750 avaliações
+    de validação e teste, o LLM marca "outro problema" em 11,6% delas e a anotação, em
+    10,0%; essa diferença apareceria como se fosse do vendedor. Validação e teste já
+    estão no cache da Fase 5 (mesmos lotes); só o treino é classificado aqui. A trava
+    de gasto vale para a soma das três partes.
     """
     frame = problem_frame() if frame is None else frame
     parts = split_frames(frame)
@@ -401,7 +427,7 @@ def build_reference(
     if pending and client is None:
         client = llm.make_client()
     classifier = llm.Classifier(client, config) if client is not None else None
-    predictions, cost = [], 0.0
+    predictions, total, new = [], 0.0, 0.0
     for split in (TRAIN, VAL, TEST):
         run = llm.run_split(
             parts[split],
@@ -409,17 +435,19 @@ def build_reference(
             split,
             classifier,
             llm.DEFAULT_PARALLEL,
-            limit_usd,
+            limit_usd - new,
             cache_dir,
             progress,
         )
         predictions.extend(run.predictions)
-        cost += llm.cost_usd(llm._sum_usage(run.records))
+        total += llm.cost_usd(llm._sum_usage(run.records))
+        new += run.new_cost_usd
     description = (
-        f"o mesmo classificador aplicado às {len(predictions)} avaliações negativas sorteadas "
-        "do marketplace (as mesmas anotadas à mão no projeto)"
+        f"o mesmo classificador aplicado às {len(predictions)} avaliações negativas com "
+        "comentário sorteadas do marketplace (as mesmas anotadas à mão no projeto)"
     )
-    return sellers.reference_from_matrix(llm.problems_to_matrix(predictions), description), cost
+    reference = sellers.reference_from_matrix(llm.problems_to_matrix(predictions), description)
+    return reference, Cost(total, new)
 
 
 # ---------------------------------------------------------------------------
@@ -564,7 +592,9 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
 # ---------------------------------------------------------------------------
 
 
-def methodology(classification_cost: float, result: AgentResult, n_negatives: int) -> str:
+def methodology(
+    classification: Cost, result: AgentResult, n_negatives: int, reference: Cost | None = None
+) -> str:
     problems = []
     if result.unsupported:
         problems.append("números " + ", ".join(result.unsupported))
@@ -579,20 +609,29 @@ def methodology(classification_cost: float, result: AgentResult, n_negatives: in
         if not problems
         else "⚠️ Sem correspondência nos dados: " + "; ".join(problems) + ". Confira antes de usar."
     )
-    total = classification_cost + result.cost_usd
+    total = classification.total_usd + result.cost_usd
+    reference_note = (
+        f" A referência do marketplace custou US$ {fmt_br(reference.total_usd, 4)} uma vez e "
+        "serve a todos os relatórios."
+        if reference is not None
+        else ""
+    )
     return f"""## Como este relatório foi feito
 
-- **Base:** avaliações com comentário da base pública da Olist (2016–2018). Pedidos com
-  produtos de mais de um vendedor ficam de fora. Vendedor e marketplace são medidos na
+- **Base:** base pública da Olist (2016–2018), só pedidos com produtos de um único vendedor.
+  Nota, negativas, comparações e evolução usam todas as avaliações, com ou sem comentário;
+  o atraso usa todos os pedidos entregues. Vendedor e marketplace são sempre medidos na
   mesma base.
-- **Tipos de problema:** as {n_negatives} avaliações negativas do vendedor foram
-  classificadas pelo {llm.MODEL_NAME}, o melhor modelo do projeto nessa tarefa (F1 macro
-  0,881 no teste). A referência do marketplace é o mesmo classificador aplicado às 1500
-  avaliações negativas sorteadas do projeto, para que vendedor e marketplace sejam
-  medidos com a mesma régua.
+- **Tipos de problema:** só as avaliações negativas com comentário têm texto para
+  classificar. As {n_negatives} do vendedor foram classificadas pelo {llm.MODEL_NAME}, o
+  melhor modelo do projeto nessa tarefa (F1 macro 0,881 no teste). A referência do
+  marketplace é o mesmo classificador aplicado às 1500 avaliações negativas com comentário
+  sorteadas do projeto, para que vendedor e marketplace sejam medidos com a mesma régua.
 - **Texto:** escrito por um agente ({MODEL}) que só consulta números calculados com
   pandas. {check}
-- **Custo:** US$ {fmt_br(total, 4)} ({result.calls} chamadas do agente).
+- **Custo:** US$ {fmt_br(total, 4)} para gerar este relatório do zero: classificação das
+  negativas, US$ {fmt_br(classification.total_usd, 4)}; agente ({result.calls} chamadas),
+  US$ {fmt_br(result.cost_usd, 4)}.{reference_note}
 """
 
 
@@ -600,8 +639,9 @@ def write_report(
     seller_id: str,
     result: AgentResult,
     tools: SellerTools,
-    classification_cost: float,
+    classification: Cost,
     output_dir: Path = OUTPUT_DIR,
+    reference: Cost | None = None,
 ) -> Path:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -615,7 +655,7 @@ def write_report(
         header
         + result.body.strip()
         + "\n\n"
-        + methodology(classification_cost, result, len(tools.negatives))
+        + methodology(classification, result, len(tools.negatives), reference)
     )
     path = output_dir / f"vendedor_{short_id}.md"
     path.write_text(text, encoding="utf-8", newline="\n")
@@ -631,7 +671,12 @@ def write_report(
         "numeros_sem_fonte": result.unsupported,
         "citacoes_sem_fonte": result.unsupported_quotes,
         "rankings_errados": result.wrong_rankings,
-        "custo_usd": round(classification_cost + result.cost_usd, 6),
+        "custo_usd": {
+            "classificacao": round(classification.total_usd, 6),
+            "agente": round(result.cost_usd, 6),
+            "total": round(classification.total_usd + result.cost_usd, 6),
+            "gasto_nesta_execucao": round(classification.new_usd + result.cost_usd, 6),
+        },
         "tokens": result.usage,
         "ferramentas": tools.calls,
     }
@@ -643,47 +688,49 @@ def write_report(
 
 def generate(
     seller_id: str,
-    df: pd.DataFrame | None = None,
+    data: sellers.SellerData | None = None,
     client=None,
     limit_usd: float = DEFAULT_LIMIT_USD,
     output_dir: Path = OUTPUT_DIR,
     cache_dir: Path = llm.CACHE_DIR,
-    reference: dict | None = None,
+    reference: tuple[dict, Cost] | None = None,
 ) -> Path:
-    df = sellers.load_seller_reviews() if df is None else df
-    sellers.seller_frame(df, seller_id)  # aborta cedo se o vendedor não existe
+    data = sellers.load_seller_data() if data is None else data
+    sellers.seller_frame(data.reviews, seller_id)  # aborta cedo se o vendedor não existe
     if client is None:
         client = llm.make_client()
     if reference is None:
-        reference, _ = build_reference(client, limit_usd=limit_usd, cache_dir=cache_dir)
-    negatives, matrix, class_cost = classify_negatives(df, seller_id, client, limit_usd, cache_dir)
-    tools = SellerTools(df, seller_id, negatives, matrix, reference)
-    result = run_agent(client, tools, limit_usd - class_cost)
-    path = write_report(seller_id, result, tools, class_cost, output_dir)
+        reference = build_reference(client, limit_usd=limit_usd, cache_dir=cache_dir)
+    distribution, reference_cost = reference
+    negatives, matrix, cost = classify_negatives(
+        data.reviews, seller_id, client, limit_usd, cache_dir
+    )
+    tools = SellerTools(data, seller_id, negatives, matrix, distribution)
+    result = run_agent(client, tools, limit_usd - cost.new_usd)
+    path = write_report(seller_id, result, tools, cost, output_dir, reference_cost)
     problems = result.unsupported + result.unsupported_quotes + result.wrong_rankings
     status = "todos conferem" if not problems else f"A CONFERIR: {problems}"
+    report_cost = Cost(cost.total_usd + result.cost_usd, cost.new_usd + result.cost_usd)
     print(
-        f"Relatório salvo em {path} · {result.numbers_checked} números ({status}) · "
-        f"US$ {class_cost + result.cost_usd:.4f}"
+        f"Relatório salvo em {path} · {result.numbers_checked} números ({status}) · {report_cost}"
     )
     return path
 
 
-def simulate(seller_id: str, df: pd.DataFrame) -> None:
+def simulate(seller_id: str, data: sellers.SellerData) -> None:
     """Mostra os números que o agente veria, sem chamar a API."""
+    df, orders = data.reviews, data.orders
     for name, func in (
-        ("resumo_vendedor", sellers.summary),
-        ("comparar_com_marketplace", sellers.compare_with_marketplace),
-        ("entregas", sellers.delivery),
+        ("resumo_vendedor", lambda: sellers.summary(df, seller_id)),
+        ("comparar_com_marketplace", lambda: sellers.compare_with_marketplace(df, seller_id)),
+        ("entregas", lambda: sellers.delivery(df, orders, seller_id)),
     ):
         print(f"\n--- {name} ---")
-        print(json.dumps(func(df, seller_id), ensure_ascii=False, indent=1))
-    part = sellers.seller_frame(df, seller_id)
-    n_neg = int((part["sentimento"] == sellers.NEGATIVE).sum())
+        print(json.dumps(func(), ensure_ascii=False, indent=1))
+    negatives = sellers.commented_negatives(df, seller_id)
     config = llm.RunConfig(task=TASK_PROBLEMS, effort=PROBLEMS_EFFORT)
-    negatives = part[part["sentimento"] == sellers.NEGATIVE].reset_index(drop=True)
     pending = llm._pending_batches(negatives, config, f"vendedor_{seller_id[:8]}", llm.CACHE_DIR)
-    print(f"\n{n_neg} negativas a classificar: {pending} lotes fora do cache.")
+    print(f"\n{len(negatives)} negativas com comentário: {pending} lotes fora do cache.")
 
 
 def simulate_reference() -> None:
@@ -710,22 +757,25 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    df = sellers.load_seller_reviews()
+    data = sellers.load_seller_data()
     if args.comando == "vendedores":
-        print(sellers.top_sellers(df, args.top).to_string())
+        print(sellers.top_sellers(data.reviews, args.top).to_string())
         return
-    ids = [args.vendedor] if args.vendedor else list(sellers.top_sellers(df, args.top).index)
+    if args.vendedor:
+        ids = [args.vendedor]
+    else:
+        ids = list(sellers.top_sellers(data.reviews, args.top).index)
     if args.simular:
         simulate_reference()
         for seller_id in ids:
             print(f"\n===== vendedor {seller_id} =====")
-            simulate(seller_id, df)
+            simulate(seller_id, data)
         return
     client = llm.make_client()
-    reference, cost = build_reference(client, limit_usd=args.limite_usd)
-    print(f"Referência do marketplace pronta · US$ {cost:.4f} (paga uma vez; depois vem do cache)")
+    reference = build_reference(client, limit_usd=args.limite_usd)
+    print(f"Referência do marketplace pronta · {reference[1]}")
     for seller_id in ids:
-        generate(seller_id, df, client, limit_usd=args.limite_usd, reference=reference)
+        generate(seller_id, data, client, limit_usd=args.limite_usd, reference=reference)
 
 
 if __name__ == "__main__":

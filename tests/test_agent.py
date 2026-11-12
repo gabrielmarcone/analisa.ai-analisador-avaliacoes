@@ -11,7 +11,7 @@ import pytest
 from reviews import agent, llm, sellers
 from reviews.annotation import LABELS
 
-from .test_sellers import _items, _products, _reviews, _sellers
+from .test_sellers import seller_data
 
 K = len(LABELS)
 REF = {"avaliacoes": 1500, "pct": {label: 10.0 for label in LABELS}, "descricao": "ref. de teste"}
@@ -154,22 +154,22 @@ class FakeClient:
 
 
 @pytest.fixture
-def df():
-    return sellers.build_seller_reviews(_reviews(), _items(), _products(), _sellers())
+def data():
+    return seller_data()
 
 
-def _tools(df):
-    neg = df[(df["seller_id"] == "A") & (df["sentimento"] == "negativa")].reset_index(drop=True)
+def _tools(data):
+    neg = sellers.commented_negatives(data.reviews, "A")
     matrix = np.zeros((len(neg), K), dtype=int)
     matrix[:, 0] = 1
-    return agent.SellerTools(df, "A", neg, matrix, REF)
+    return agent.SellerTools(data, "A", neg, matrix, REF)
 
 
 GOOD = "## Resumo\n- 50% das avaliações são negativas, com nota média 3."
 
 
-def test_laco_com_ferramentas_paralelas_erro_e_reescrita(df):
-    tools = _tools(df)
+def test_laco_com_ferramentas_paralelas_erro_e_reescrita(data):
+    tools = _tools(data)
     script = [
         ("tool_use", [_tool_use("t1", "resumo_vendedor"), _tool_use("t2", "entregas")]),
         ("tool_use", [_tool_use("t3", "exemplos_avaliacoes", {"categoria": "inexistente"})]),
@@ -193,7 +193,10 @@ def test_laco_com_ferramentas_paralelas_erro_e_reescrita(df):
     assert second[1] == {"role": "assistant", "content": script[0][1]}
     results = second[2]["content"]
     assert [r["tool_use_id"] for r in results] == ["t1", "t2"]
-    assert json.loads(results[0]["content"])["avaliacoes_com_comentario"] == 4
+    summary = json.loads(results[0]["content"])
+    assert summary["avaliacoes"] == 6 and summary["avaliacoes_com_comentario"] == 4
+    delivery = json.loads(results[1]["content"])
+    assert delivery["atraso_nos_pedidos"]["vendedor"]["pct_com_atraso"] == 50.0
 
     error = client.agent_calls[2]["messages"][4]["content"][0]
     assert error["is_error"] is True and "desconhecida" in error["content"]
@@ -203,7 +206,7 @@ def test_laco_com_ferramentas_paralelas_erro_e_reescrita(df):
     assert [c["ferramenta"] for c in tools.calls] == ["resumo_vendedor", "entregas"]
 
 
-def test_citacao_inventada_pede_reescrita(df):
+def test_citacao_inventada_pede_reescrita(data):
     invented = [_text('## Resumo\n- Um cliente disse: "o produto chegou quebrado e sem nota".')]
     fixed = [_text(GOOD)]
     script = [
@@ -212,60 +215,68 @@ def test_citacao_inventada_pede_reescrita(df):
         ("end_turn", fixed),
     ]
     client = FakeClient(script)
-    result = agent.run_agent(client, _tools(df))
+    result = agent.run_agent(client, _tools(data))
     assert result.revisions == 1 and result.unsupported_quotes == []
     assert "trechos entre aspas" in client.agent_calls[2]["messages"][-1]["content"]
     assert result.revision_reasons and "chegou quebrado" in result.revision_reasons[0]
 
 
-def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(df):
+def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(data):
     bad = [_text("## Resumo\n- 99% negativas.")]
     script = [
         ("tool_use", [_tool_use("t1", "resumo_vendedor")]),
         ("end_turn", bad),
         ("end_turn", bad),
     ]
-    result = agent.run_agent(FakeClient(script), _tools(df))
+    result = agent.run_agent(FakeClient(script), _tools(data))
     assert result.unsupported == ["99"] and result.revisions == 1
-    note = agent.methodology(0.0, result, 2)
+    note = agent.methodology(agent.Cost(0.0, 0.0), result, 2)
     assert "⚠️ Sem correspondência nos dados: números 99" in note
+    assert "referência do marketplace" not in note  # sem custo da referência, sem a frase
 
 
-def test_paradas_inesperadas_e_limites(df, monkeypatch):
+def test_paradas_inesperadas_e_limites(data, monkeypatch):
     with pytest.raises(RuntimeError, match="max_tokens"):
-        agent.run_agent(FakeClient([("max_tokens", [_text("...")])]), _tools(df))
+        agent.run_agent(FakeClient([("max_tokens", [_text("...")])]), _tools(data))
     with pytest.raises(llm.SpendLimitReached):
-        agent.run_agent(FakeClient([("end_turn", [_text(GOOD)])]), _tools(df), limit_usd=1e-6)
+        agent.run_agent(FakeClient([("end_turn", [_text(GOOD)])]), _tools(data), limit_usd=1e-6)
     monkeypatch.setattr(agent, "MAX_CALLS", 2)
     loop = [("tool_use", [_tool_use(f"t{i}", "resumo_vendedor")]) for i in range(3)]
     with pytest.raises(RuntimeError, match="2 chamadas"):
-        agent.run_agent(FakeClient(loop), _tools(df))
+        agent.run_agent(FakeClient(loop), _tools(data))
 
 
-def test_relatorio_completo_ponta_a_ponta(df, tmp_path, monkeypatch):
+def test_relatorio_completo_ponta_a_ponta(data, tmp_path, monkeypatch):
     script = [
         ("tool_use", [_tool_use("t1", "resumo_vendedor"), _tool_use("t2", "problemas_relatados")]),
         ("end_turn", [_text(GOOD)]),
     ]
     client = FakeClient(script)
+    reference = (REF, agent.Cost(0.0805, 0.0))
     path = agent.generate(
         "A",
-        df,
+        data,
         client=client,
         output_dir=tmp_path / "rel",
         cache_dir=tmp_path / "cache",
-        reference=REF,
+        reference=reference,
     )
-    assert client.classifier_calls == 1  # 2 negativas do vendedor A, um lote
+    assert client.classifier_calls == 1  # 2 negativas com comentário do vendedor A, um lote
     text = path.read_text(encoding="utf-8")
     assert text.startswith("# Relatório de avaliações · vendedor `A`")
     assert GOOD in text and "## Como este relatório foi feito" in text
     assert "todos conferem" in text and "\r\n" not in text
+    assert "As 2 do vendedor foram classificadas" in text
+    assert "A referência do marketplace custou US$ 0,0805 uma vez" in text
     audit = json.loads((tmp_path / "rel" / "vendedor_A_ferramentas.json").read_text("utf-8"))
     assert audit["numeros_sem_fonte"] == [] and len(audit["ferramentas"]) == 2
     assert audit["motivos_das_reescritas"] == []
     problems = audit["ferramentas"][1]["saida"]
     assert problems["categorias"][0]["categoria"] == "atraso"
+    cost = audit["custo_usd"]
+    assert cost["classificacao"] == pytest.approx(0.0002) and cost["agente"] > 0
+    assert cost["total"] == pytest.approx(cost["classificacao"] + cost["agente"])
+    assert cost["gasto_nesta_execucao"] == pytest.approx(cost["total"])  # nada no cache ainda
 
     # De novo: a classificação vem do cache (nenhuma chamada nova ao classificador).
     client2 = FakeClient(
@@ -273,13 +284,16 @@ def test_relatorio_completo_ponta_a_ponta(df, tmp_path, monkeypatch):
     )
     agent.generate(
         "A",
-        df,
+        data,
         client=client2,
         output_dir=tmp_path / "rel",
         cache_dir=tmp_path / "cache",
-        reference=REF,
+        reference=reference,
     )
     assert client2.classifier_calls == 0
+    again = json.loads((tmp_path / "rel" / "vendedor_A_ferramentas.json").read_text("utf-8"))
+    assert again["custo_usd"]["classificacao"] == pytest.approx(0.0002)  # custo do zero
+    assert again["custo_usd"]["gasto_nesta_execucao"] == pytest.approx(again["custo_usd"]["agente"])
 
 
 def test_referencia_usa_o_mesmo_classificador_e_o_cache(tmp_path):
@@ -291,19 +305,33 @@ def test_referencia_usa_o_mesmo_classificador_e_o_cache(tmp_path):
             row["atraso"] = 1
             rows.append(row)
     frame = pd.DataFrame(rows)
+    # A trava de gasto vale para a soma das partes: 2 lotes do treino (US$ 0,0004) já
+    # consomem quase tudo, e o primeiro lote da validação passa do limite.
+    with pytest.raises(llm.SpendLimitReached):
+        agent.build_reference(
+            FakeClient([]),
+            frame,
+            limit_usd=0.0005,
+            cache_dir=tmp_path / "trava",
+            progress=lambda _: None,
+        )
+
     client = FakeClient([])  # o cliente falso responde "atraso" para tudo
     reference, cost = agent.build_reference(
         client, frame, cache_dir=tmp_path, progress=lambda _: None
     )
     assert reference["avaliacoes"] == 60 and reference["pct"]["atraso"] == 100.0
-    assert "mesmo classificador" in reference["descricao"] and cost > 0
+    assert "mesmo classificador" in reference["descricao"]
+    assert cost.total_usd == pytest.approx(4 * 0.0002) and cost.new_usd == cost.total_usd
     assert client.classifier_calls == 4  # lotes de 25: 2 (treino) + 1 + 1
     again = FakeClient([])
-    agent.build_reference(again, frame, cache_dir=tmp_path, progress=lambda _: None)
+    _, cost_again = agent.build_reference(again, frame, cache_dir=tmp_path, progress=lambda _: None)
     assert again.classifier_calls == 0  # tudo do cache
+    assert cost_again.total_usd == pytest.approx(cost.total_usd) and cost_again.new_usd == 0
+    assert str(cost_again) == "US$ 0.0008 (gasto agora: US$ 0.0000)"
 
 
-def test_sdk_de_verdade_devolve_o_raciocinio_ao_modelo(df):
+def test_sdk_de_verdade_devolve_o_raciocinio_ao_modelo(data):
     """Com o pacote anthropic real (servidor local): o bloco de raciocínio volta intacto."""
     anthropic = pytest.importorskip("anthropic")
     import http.server
@@ -349,7 +377,7 @@ def test_sdk_de_verdade_devolve_o_raciocinio_ao_modelo(df):
         client = anthropic.Anthropic(
             api_key="chave-falsa", base_url=f"http://127.0.0.1:{server.server_port}", max_retries=0
         )
-        result = agent.run_agent(client, _tools(df))
+        result = agent.run_agent(client, _tools(data))
     finally:
         server.shutdown()
 

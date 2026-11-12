@@ -3,10 +3,20 @@
 Tudo aqui é pandas puro, determinístico e testável: o agente (``agent.py``) só
 lê o que estas funções devolvem e nunca calcula números por conta própria.
 
-Universo: avaliações **com comentário** (a base do projeto). Vendedor e
-marketplace são sempre medidos nesse mesmo universo, para a comparação ser justa.
-Pedidos com itens de mais de um vendedor ficam de fora, porque a avaliação não
-diz a qual vendedor se refere.
+Cada número usa a base certa para o que ele mede:
+
+- nota média, % de negativas, comparação com o marketplace e evolução mensal:
+  **todas as avaliações**, com ou sem comentário. Só 41% das avaliações têm
+  comentário, e quem está insatisfeito escreve mais; medir a nota só nas
+  comentadas mostraria um vendedor pior do que ele é (no marketplace, 25,0% de
+  negativas entre as comentadas contra 13,7% no total);
+- tipos de problema e trechos: só as **negativas com comentário**, as únicas
+  com texto para classificar (a mesma base da anotação e dos classificadores);
+- atraso na entrega: **todos os pedidos entregues**, com ou sem avaliação.
+
+Vendedor e marketplace são sempre medidos na mesma base. Pedidos com itens de
+mais de um vendedor ficam de fora, porque a avaliação não diz a qual vendedor se
+refere.
 
 Todas as funções de estatística devolvem dicionários prontos para JSON, com
 porcentagens já multiplicadas por 100 e arredondadas.
@@ -15,12 +25,15 @@ porcentagens já multiplicadas por 100 e arredondadas.
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from reviews.annotation import CATEGORIES, LABELS
+from reviews.data import add_delivery_info, deduplicate_reviews, load_orders, load_reviews
+from reviews.labels import sentiment_from_score
 from reviews.paths import PROCESSED_REVIEWS_FILE, RAW_DIR
 
 ORDER_ITEMS_FILE = "olist_order_items_dataset.csv"
@@ -56,22 +69,52 @@ def _pretty_category(name: object) -> str:
     return name.strip().replace("_", " ")
 
 
-def build_seller_reviews(
-    reviews: pd.DataFrame,
-    items: pd.DataFrame,
-    products: pd.DataFrame,
-    sellers: pd.DataFrame,
-) -> pd.DataFrame:
-    """Liga cada avaliação ao vendedor, à categoria do produto e ao mês."""
+def _single_seller_orders(items: pd.DataFrame) -> pd.DataFrame:
+    """Primeiro item de cada pedido que tem um vendedor só (order_id, seller_id, product_id)."""
     per_order = items.groupby("order_id")["seller_id"].nunique()
     single = per_order[per_order == 1].index
-    first_item = (
+    return (
         items[items["order_id"].isin(single)]
         .sort_values(["order_id", "order_item_id"], kind="mergesort")
         .drop_duplicates("order_id")
         .loc[:, ["order_id", "seller_id", "product_id"]]
     )
-    df = reviews.merge(first_item, on="order_id", how="inner", validate="many_to_one")
+
+
+def build_seller_reviews(
+    reviews: pd.DataFrame,
+    comments: pd.DataFrame,
+    orders: pd.DataFrame,
+    items: pd.DataFrame,
+    products: pd.DataFrame,
+    sellers: pd.DataFrame,
+) -> pd.DataFrame:
+    """Todas as avaliações (com e sem comentário) ligadas ao vendedor, à categoria e ao mês.
+
+    ``reviews`` é a tabela bruta da Olist; ``comments`` é a base processada do projeto
+    (só as avaliações com comentário, com o texto já limpo). As duplicatas saem com a
+    mesma regra da base processada (``deduplicate_reviews``), então as avaliações com
+    comentário ficam aqui na mesma ordem de lá; isso mantém os lotes do classificador
+    iguais e o cache válido.
+    """
+    df = deduplicate_reviews(reviews)
+    df = df.assign(review_score=df["review_score"].astype(int))
+    df["sentimento"] = sentiment_from_score(df["review_score"])
+    df = add_delivery_info(df, orders)
+
+    texts = comments.loc[:, ["review_id", "texto"]].astype({"review_id": str})
+    unknown = int((~texts["review_id"].isin(df["review_id"].astype(str))).sum())
+    if unknown:
+        raise ValueError(
+            f"{unknown} avaliações da base processada não estão na base bruta. "
+            "Refaça a base com `python -m reviews.prepare`."
+        )
+    df = df.astype({"review_id": str}).merge(
+        texts, on="review_id", how="left", validate="one_to_one"
+    )
+    df["tem_comentario"] = df["texto"].notna()
+
+    df = df.merge(_single_seller_orders(items), on="order_id", how="inner", validate="many_to_one")
     df = df.merge(
         products.loc[:, ["product_id", "product_category_name"]],
         on="product_id",
@@ -96,6 +139,7 @@ def build_seller_reviews(
         "mes",
         "review_score",
         "sentimento",
+        "tem_comentario",
         "texto",
         "dias_de_atraso",
         "entregue_com_atraso",
@@ -103,18 +147,42 @@ def build_seller_reviews(
     return df.loc[:, keep].reset_index(drop=True)
 
 
-def load_seller_reviews(
+def build_seller_orders(orders: pd.DataFrame, items: pd.DataFrame) -> pd.DataFrame:
+    """Pedidos de um vendedor só, com o atraso calculado pela mesma regra das avaliações."""
+    first = _single_seller_orders(items).loc[:, ["order_id", "seller_id"]]
+    df = add_delivery_info(first, orders)
+    return df.loc[:, ["order_id", "seller_id", "dias_de_atraso", "entregue_com_atraso"]]
+
+
+@dataclass(frozen=True)
+class SellerData:
+    """As duas tabelas que as ferramentas consultam."""
+
+    reviews: pd.DataFrame  # todas as avaliações, com a marca tem_comentario
+    orders: pd.DataFrame  # todos os pedidos, para medir atraso
+
+
+def load_seller_data(
     processed_file: Path = PROCESSED_REVIEWS_FILE, raw_dir: Path = RAW_DIR
-) -> pd.DataFrame:
-    raw_dir = Path(raw_dir)
-    reviews = pd.read_parquet(processed_file)
+) -> SellerData:
+    raw_dir, processed_file = Path(raw_dir), Path(processed_file)
+    if not processed_file.is_file():
+        raise FileNotFoundError(
+            f"{processed_file} não encontrado. Rode `python -m reviews.prepare`."
+        )
+    reviews = load_reviews(raw_dir)
+    orders = load_orders(raw_dir)
+    comments = pd.read_parquet(processed_file, columns=["review_id", "texto"])
     items = _read(
         raw_dir / ORDER_ITEMS_FILE, ["order_id", "order_item_id", "product_id", "seller_id"]
     )
     items["order_item_id"] = items["order_item_id"].astype(int)
     products = _read(raw_dir / PRODUCTS_FILE, ["product_id", "product_category_name"])
     sellers = _read(raw_dir / SELLERS_FILE, ["seller_id", "seller_city", "seller_state"])
-    return build_seller_reviews(reviews, items, products, sellers)
+    return SellerData(
+        reviews=build_seller_reviews(reviews, comments, orders, items, products, sellers),
+        orders=build_seller_orders(orders, items),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +206,15 @@ def _diff(a: float | None, b: float | None, decimals: int = 1) -> float | None:
 def seller_frame(df: pd.DataFrame, seller_id: str) -> pd.DataFrame:
     part = df[df["seller_id"] == seller_id]
     if part.empty:
-        raise ValueError(f"Vendedor {seller_id} sem avaliações com comentário na base.")
+        raise ValueError(f"Vendedor {seller_id} sem avaliações na base.")
     return part
+
+
+def commented_negatives(df: pd.DataFrame, seller_id: str) -> pd.DataFrame:
+    """Negativas com comentário do vendedor, na ordem da base (a ordem define os lotes)."""
+    part = seller_frame(df, seller_id)
+    keep = part["tem_comentario"].astype(bool) & (part["sentimento"] == NEGATIVE)
+    return part[keep].reset_index(drop=True)
 
 
 def _negative_share(df: pd.DataFrame) -> float | None:
@@ -160,12 +235,15 @@ def summary(df: pd.DataFrame, seller_id: str, top_categories: int = 5) -> dict:
         "vendedor": seller_id,
         "cidade": first["seller_city"] if isinstance(first["seller_city"], str) else None,
         "estado": first["seller_state"] if isinstance(first["seller_state"], str) else None,
-        "avaliacoes_com_comentario": int(len(part)),
+        "base": "todas as avaliações do vendedor, com ou sem comentário",
+        "avaliacoes": int(len(part)),
         "nota_media": _mean(part["review_score"]),
         "pct_negativas": _pct(counts.get("negativa", 0), len(part)),
         "pct_neutras": _pct(counts.get("neutra", 0), len(part)),
         "pct_positivas": _pct(counts.get("positiva", 0), len(part)),
         "avaliacoes_negativas": int(counts.get("negativa", 0)),
+        "avaliacoes_com_comentario": int(part["tem_comentario"].sum()),
+        "negativas_com_comentario": int(len(commented_negatives(df, seller_id))),
         "primeiro_mes": str(part["mes"].min()),
         "ultimo_mes": str(part["mes"].max()),
         "categorias_principais": [
@@ -206,6 +284,7 @@ def compare_with_marketplace(df: pd.DataFrame, seller_id: str, top_categories: i
         )
 
     return {
+        "base": "todas as avaliações, com ou sem comentário",
         "nota_media_vendedor": _mean(part["review_score"]),
         "nota_media_marketplace": _mean(df["review_score"]),
         "diferenca_nota": _diff(_mean(part["review_score"]), _mean(df["review_score"]), 2),
@@ -219,33 +298,74 @@ def compare_with_marketplace(df: pd.DataFrame, seller_id: str, top_categories: i
     }
 
 
-def _delivery_block(df: pd.DataFrame) -> dict:
-    delivered = df[df["entregue_com_atraso"].notna()]
+def _order_delays(orders: pd.DataFrame) -> dict:
+    delivered = orders[orders["entregue_com_atraso"].notna()]
     late = delivered[delivered["entregue_com_atraso"].astype(bool)]
-    on_time = delivered[~delivered["entregue_com_atraso"].astype(bool)]
     return {
-        "avaliacoes_de_pedidos_entregues": int(len(delivered)),
-        "pct_entregues_com_atraso": _pct(len(late), len(delivered)),
+        "pedidos_entregues": int(len(delivered)),
+        "pedidos_com_atraso": int(len(late)),
+        "pct_com_atraso": _pct(len(late), len(delivered)),
         "mediana_dias_de_atraso": (
             float(late["dias_de_atraso"].astype(float).median()) if len(late) else None
         ),
+    }
+
+
+def _delay_effect(reviews: pd.DataFrame) -> dict:
+    delivered = reviews[reviews["entregue_com_atraso"].notna()]
+    late = delivered[delivered["entregue_com_atraso"].astype(bool)]
+    on_time = delivered[~delivered["entregue_com_atraso"].astype(bool)]
+    return {
+        "avaliacoes_com_atraso": int(len(late)),
+        "avaliacoes_no_prazo": int(len(on_time)),
         "nota_media_com_atraso": _mean(late["review_score"]),
         "nota_media_no_prazo": _mean(on_time["review_score"]),
         "pct_negativas_com_atraso": _negative_share(late) if len(late) else None,
         "pct_negativas_no_prazo": _negative_share(on_time) if len(on_time) else None,
-        "avaliacoes_de_pedidos_nao_entregues": int(df["entregue_com_atraso"].isna().sum()),
     }
 
 
-def delivery(df: pd.DataFrame, seller_id: str) -> dict:
-    seller = _delivery_block(seller_frame(df, seller_id))
-    market = _delivery_block(df)
+def delivery(df: pd.DataFrame, orders: pd.DataFrame, seller_id: str) -> dict:
+    """Atraso medido nos pedidos; efeito do atraso medido nas notas desses pedidos.
+
+    O atraso usa todos os pedidos entregues, com ou sem avaliação. Medido só nas
+    avaliações com comentário, ele sairia inflado (no marketplace, 9,8% em vez de
+    6,9%), porque quem recebe com atraso comenta mais.
+    """
+    part = seller_frame(df, seller_id)
+    seller_orders, market_orders = (
+        _order_delays(orders[orders["seller_id"] == seller_id]),
+        _order_delays(orders),
+    )
+    seller_effect, market_effect = _delay_effect(part), _delay_effect(df)
     return {
-        "vendedor": seller,
-        "marketplace": market,
-        "diferenca_pct_atraso_pontos_percentuais": _diff(
-            seller["pct_entregues_com_atraso"], market["pct_entregues_com_atraso"]
-        ),
+        "atraso_nos_pedidos": {
+            "base": "todos os pedidos entregues, com ou sem avaliação",
+            "vendedor": seller_orders,
+            "marketplace": market_orders,
+            "diferenca_pct_com_atraso_pontos_percentuais": _diff(
+                seller_orders["pct_com_atraso"], market_orders["pct_com_atraso"]
+            ),
+        },
+        "notas_com_e_sem_atraso": {
+            "base": "avaliações de pedidos entregues, com ou sem comentário",
+            "vendedor": seller_effect,
+            "marketplace": market_effect,
+            "diferenca_nota_com_atraso": _diff(
+                seller_effect["nota_media_com_atraso"], market_effect["nota_media_com_atraso"], 2
+            ),
+            "diferenca_nota_no_prazo": _diff(
+                seller_effect["nota_media_no_prazo"], market_effect["nota_media_no_prazo"], 2
+            ),
+            "diferenca_pct_negativas_com_atraso_pontos_percentuais": _diff(
+                seller_effect["pct_negativas_com_atraso"],
+                market_effect["pct_negativas_com_atraso"],
+            ),
+            "diferenca_pct_negativas_no_prazo_pontos_percentuais": _diff(
+                seller_effect["pct_negativas_no_prazo"], market_effect["pct_negativas_no_prazo"]
+            ),
+        },
+        "avaliacoes_de_pedidos_nao_entregues": int(part["entregue_com_atraso"].isna().sum()),
     }
 
 
@@ -275,9 +395,15 @@ def volume_relation(months: list[dict]) -> dict | None:
     if strength == "sem relação clara":
         reading = "sem relação clara: o volume do mês não acompanha a proporção de negativas"
     elif r > 0:
-        reading = f"relação {strength}: meses com mais avaliações tendem a ter mais negativas"
+        reading = (
+            f"relação {strength}: meses com mais avaliações tendem a ter proporção maior "
+            "de negativas"
+        )
     else:
-        reading = f"relação {strength}: meses com mais avaliações tendem a ter menos negativas"
+        reading = (
+            f"relação {strength}: meses com mais avaliações tendem a ter proporção menor "
+            "de negativas"
+        )
     return {
         "meses_usados": len(months),
         "correlacao_spearman": r,
@@ -305,7 +431,9 @@ def monthly(df: pd.DataFrame, seller_id: str) -> dict:
     best = min(relevant, key=lambda r: r["pct_negativas"], default=None)
     biggest = max(rows, key=lambda r: r["avaliacoes"], default=None)
 
-    months = [r["mes"] for r in rows]
+    # Meses de calendário: um mês sem avaliações continua contando como mês.
+    calendar = pd.period_range(rows[0]["mes"], rows[-1]["mes"], freq="M").strftime("%Y-%m")
+    months = list(calendar)
     trend = None
     if len(months) >= 6:
         last, previous = months[-3:], months[-6:-3]
@@ -321,6 +449,7 @@ def monthly(df: pd.DataFrame, seller_id: str) -> dict:
         }
 
     return {
+        "base": "todas as avaliações do vendedor, com ou sem comentário",
         "meses": rows,
         "relacao_volume_negativas": volume_relation(relevant),
         "minimo_de_avaliacoes_para_mes_relevante": MIN_MONTH_REVIEWS,
@@ -354,7 +483,7 @@ def reference_from_matrix(matrix: np.ndarray, description: str) -> dict:
 
 
 def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict) -> dict:
-    """Tipos de problema nas negativas do vendedor (classificadas pelo LLM) × referência."""
+    """Tipos de problema nas negativas com comentário do vendedor (LLM) × referência."""
     matrix = np.asarray(matrix, dtype=int)
     if matrix.shape != (len(seller_negatives), len(LABELS)):
         raise ValueError(
@@ -371,7 +500,7 @@ def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict
                 "categoria": label,
                 "nome": CATEGORIES[label],
                 "avaliacoes": count,
-                "pct_das_negativas": seller_pct,
+                "pct_das_negativas_com_comentario": seller_pct,
                 "pct_referencia_marketplace": market_pct,
                 "diferenca_pontos_percentuais": _diff(seller_pct, market_pct),
             }
@@ -380,6 +509,7 @@ def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict
     for row in rows:  # empates ficam com a mesma posição
         row["posicao"] = 1 + sum(other["avaliacoes"] > row["avaliacoes"] for other in rows)
     return {
+        "base": "só as avaliações negativas com comentário, as únicas com texto para classificar",
         "avaliacoes_negativas_classificadas": n,
         "ordem": "da categoria mais citada para a menos citada (campo posicao)",
         "referencia_marketplace": reference["descricao"],
@@ -391,7 +521,7 @@ def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict
 def examples(
     seller_negatives: pd.DataFrame, matrix: np.ndarray, category: str, n: int = 3, seed: int = 42
 ) -> dict:
-    """Trechos reais de avaliações negativas de uma categoria (sorteio fixo)."""
+    """Trechos reais de avaliações negativas com comentário de uma categoria (sorteio fixo)."""
     if category not in LABELS:
         raise ValueError(f"Categoria desconhecida: {category}")
     n = max(1, min(int(n), 5))
@@ -413,7 +543,7 @@ def examples(
 
 
 def top_sellers(df: pd.DataFrame, n: int = 10) -> pd.DataFrame:
-    """Vendedores com mais avaliações negativas (com comentário)."""
+    """Vendedores com mais avaliações negativas (todas, com ou sem comentário)."""
     grouped = df.groupby("seller_id").agg(
         avaliacoes=("review_id", "size"),
         negativas=("sentimento", lambda s: int((s == NEGATIVE).sum())),
@@ -421,6 +551,10 @@ def top_sellers(df: pd.DataFrame, n: int = 10) -> pd.DataFrame:
     )
     grouped["pct_negativas"] = (grouped["negativas"] / grouped["avaliacoes"] * 100).round(1)
     grouped["nota_media"] = grouped["nota_media"].round(2)
+    commented = df["tem_comentario"].astype(bool) & (df["sentimento"] == NEGATIVE)
+    grouped["negativas_com_comentario"] = (
+        df[commented].groupby("seller_id").size().reindex(grouped.index, fill_value=0).astype(int)
+    )
     return grouped.sort_values(["negativas", "avaliacoes"], ascending=False).head(n)
 
 
@@ -428,7 +562,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Vendedores com mais avaliações negativas.")
     parser.add_argument("--top", type=int, default=10)
     args = parser.parse_args(argv)
-    print(top_sellers(load_seller_reviews(), args.top).to_string())
+    print(top_sellers(load_seller_data().reviews, args.top).to_string())
 
 
 if __name__ == "__main__":
