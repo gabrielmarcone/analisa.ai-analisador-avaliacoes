@@ -71,7 +71,8 @@ python -m reviews.llm verificar                         # testa a chave (custo ~
 python -m reviews.llm problemas --simular               # mostra o plano, sem chamar a API
 python -m reviews.llm problemas --esforco low           # validação
 python -m reviews.llm problemas --esforco medium        # validação, outro esforço
-python -m reviews.llm problemas --esforco low --teste   # teste, com o esforço escolhido
+python -m reviews.llm problemas --esforco medium --teste   # teste, com o esforço escolhido
+python -m reviews.llm sentimento --esforco low --teste     # idem (empate na validação: o mais barato)
 ```
 
 - O **esforço de raciocínio** (`low`, `medium`, `high`) é escolhido na validação; toda
@@ -122,8 +123,9 @@ de nenhum.
 
 **Custo e latência.** O LLM custou US$ 0,23 no total, somando as escolhas de esforço na
 validação e o teste (menos de US$ 0,05 por mil avaliações). A latência por avaliação vem
-de lotes de 25; uma chamada isolada leva cerca de 2 segundos (`reviews.llm verificar`). O TF-IDF responde em
-microssegundos sem custo nenhum, e o BERTimbau roda em CPU sem depender de API.
+de lotes de 25; uma chamada isolada leva cerca de 2 segundos (`reviews.llm verificar`).
+O TF-IDF responde em microssegundos sem custo nenhum, e o BERTimbau roda em CPU sem
+depender de API.
 
 **Escolha do esforço de raciocínio (validação).** Regra fixada antes de ver os números:
 fica o maior F1, mas uma diferença menor que 0,01 conta como empate e vence o mais barato.
@@ -164,7 +166,7 @@ ainda sobe com 750 exemplos: mais anotação ajudaria os modelos treinados.
 | Divisão versionada em `splits/olist_splits_v1.csv` | Os três modelos são avaliados exatamente no mesmo teste. |
 | Tipo de problema **multirrótulo** (7 categorias + "sem reclamação") | Uma reclamação costuma ter mais de um problema ("atrasou e veio quebrado"); escolher um "principal" seria arbitrário. |
 | Anotação feita a partir do **texto**, não dos dados de entrega | O modelo só vê o texto; os dados de entrega ficam para validar depois. |
-| Teste 100% anotado à mão, sem pré-rótulo de LLM | Senão a comparação com o LLM zero-shot ficaria enviesada a favor dele. |
+| Teste 100% anotado à mão, sem pré-rótulo de LLM; depois, só correções mecânicas pelas regras escritas | Senão a comparação com o LLM zero-shot ficaria enviesada a favor dele. |
 | Piloto de 100 avaliações tirado do treino | Ajustes no guia não contaminam o teste. |
 | Concordância medida com kappa de Cohen numa reanotação de 100 avaliações | Mostra quais categorias têm regras claras e quais são ambíguas. |
 | Hiperparâmetros escolhidos na validação; teste medido uma vez por modelo | O teste nunca orienta ajustes, senão a comparação final ficaria viciada. |

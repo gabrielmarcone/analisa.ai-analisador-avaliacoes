@@ -126,6 +126,7 @@ def save_result(
     tmp.write_text(
         json.dumps(results, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",  # LF também no Windows, igual ao que o Git guarda
     )
     os.replace(tmp, path)
     return results
@@ -152,6 +153,6 @@ def comparison_markdown(results: dict, task: str, split: str) -> str:
         lines.append(
             f"| {m.get('modelo', name)} | {fmt_br(m['f1_macro'])} | "
             f"{fmt_br(latency, 2) if latency is not None else '–'} | "
-            f"{fmt_br(cost, 2) if cost is not None else '–'} | {m['n']} |"
+            f"{fmt_br(cost, 3) if cost is not None else '–'} | {m['n']} |"
         )
     return "\n".join(lines)

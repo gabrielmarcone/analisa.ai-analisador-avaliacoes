@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "analisador-avaliacoes"
-version = "0.1.0"
+version = "0.3.0"
 description = "Classificação de avaliações de e-commerce brasileiro (base Olist) com TF-IDF, BERTimbau e LLM."
 requires-python = ">=3.12"
 

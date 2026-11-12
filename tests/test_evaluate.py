@@ -83,12 +83,13 @@ def test_resultados_acumulam_e_viram_tabela(tmp_path):
     assert set(results["problemas"]["teste"]) == {"baseline", "llm"}
     assert not path.with_suffix(".tmp").exists()
     assert json.loads(path.read_text(encoding="utf-8")) == load_results(path)
+    assert b"\r\n" not in path.read_bytes()  # LF mesmo no Windows
 
     table = comparison_markdown(results, "problemas", "teste")
     rows = table.splitlines()
     assert rows[2].startswith("| LLM zero-shot | 0,700 ")  # maior F1 primeiro
     assert "| Baseline | 0,500 | – | – | 10 |" in table
-    assert "1,25" in table
+    assert "| 1,250 | 10 |" in table  # custo com 3 casas: US$ 0,014 não vira 0,01
 
     assert "Sem resultados" in comparison_markdown(results, "sentimento", "teste")
 
