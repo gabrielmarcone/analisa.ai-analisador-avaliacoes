@@ -93,6 +93,47 @@ def test_ranking_de_problemas_conferido():
     assert agent.wrong_rankings("O mais citado é X.", []) == []  # sem a ferramenta: não julga
 
 
+def test_ranking_com_ordinais_e_com_numero_de_mais_citados():
+    # Contagem real do vendedor 4a3ca931.
+    counts = {
+        "nao_recebido": 86,
+        "atendimento": 54,
+        "produto_diferente": 52,
+        "defeito_qualidade": 50,
+        "atraso": 39,
+        "incompleto": 15,
+        "outro": 15,
+        "sem_reclamacao": 7,
+    }
+    outputs = [_problems_output(counts)]
+    # Falso positivo real: o ordinal estava certo, mas era julgado como "o mais citado".
+    ordinal = (
+        '**Conferir separação e expedição.** "Produto errado ou diferente" é o terceiro '
+        "mais citado e está 4,5 pontos percentuais acima da referência."
+    )
+    assert agent.wrong_rankings(ordinal, outputs) == []
+    ok = (
+        "Os três problemas mais citados são não recebido, atendimento e produto errado. "
+        "Não recebido é o mais citado; atendimento é o segundo mais citado. "
+        "Pedido incompleto é o sexto mais citado. Outro problema é o 7º mais citado."
+    )  # incompleto e outro empatam em 6º: podem ser 6º ou 7º
+    assert agent.wrong_rankings(ok, outputs) == []
+    # Erro real do primeiro rascunho: pula o 2º (atendimento).
+    draft = (
+        '- O principal problema citado é "não recebido", seguido de "produto errado ou '
+        'diferente" e "defeito ou má qualidade".'
+    )
+    assert "os 3 mais citados são" in agent.wrong_rankings(draft, outputs)[0]
+    assert agent.wrong_rankings("Defeito é o segundo mais citado.", outputs) == [
+        "«Defeito é o segundo mais citado.» (pela contagem, Defeito Qualidade é o 4º)"
+    ]
+    assert agent.wrong_rankings("Outro problema é o oitavo mais citado.", outputs)
+    two = agent.wrong_rankings("Entre os dois mais citados está produto errado.", outputs)
+    assert "os 2 mais citados são: Nao Recebido, Atendimento" in two[0]
+    one = agent.wrong_rankings("Atendimento é o problema mais citado.", outputs)
+    assert "o mais citado é: Nao Recebido)" in one[0]
+
+
 def test_recomendacao_apoiada_so_em_problema_secundario_e_marcada():
     # Tabela real do vendedor 6560211a (posição, diferença para a referência).
     table = {

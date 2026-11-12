@@ -339,33 +339,84 @@ def _plain(text: str) -> str:
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
-def wrong_rankings(report: str, outputs: list[dict]) -> list[str]:
-    """Frases que chamam de "mais citado" algo que não está no topo pela contagem.
+# "o terceiro mais citado", "2º problema mais citado", "segundo maior problema"
+_ORDINAL_WORDS = {
+    "segund": 2,
+    "terceir": 3,
+    "quart": 4,
+    "quint": 5,
+    "sext": 6,
+    "setim": 7,
+    "oitav": 8,
+}
+_ORDINAL_CLAIM = re.compile(
+    r"\b(?:(" + "|".join(_ORDINAL_WORDS) + r")[oa]s?|([2-8])[oa°])"
+    r"(?:\s+\w+){0,3}?\s+(?:" + _RANKING_CLAIM.pattern + ")"
+)
+# "os três (problemas) mais citados", "entre os 3 mais citados"
+_COUNT_WORDS = {"dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5}
+_COUNT_CLAIM = re.compile(r"\b(" + "|".join(_COUNT_WORDS) + r"|[2-5])(?:\s+\w+){0,3}?\s+mais citad")
 
-    Uma frase que nomeia k tipos de problema como os mais citados só passa se todos
-    estiverem entre os k primeiros (empates contam como a mesma posição).
+
+def _ordinal_value(match: re.Match) -> int:
+    return _ORDINAL_WORDS[match.group(1)] if match.group(1) else int(match.group(2))
+
+
+def wrong_rankings(report: str, outputs: list[dict]) -> list[str]:
+    """Frases sobre "o mais citado" que não batem com a contagem.
+
+    - Ordinal ("o terceiro mais citado"): o tipo de problema tem que estar nessa posição.
+    - Sem ordinal: uma frase que nomeia k tipos como os mais citados (ou "os k mais
+      citados") só passa se todos estiverem entre os k primeiros.
+    Empates contam como a mesma posição: dois tipos empatados em 2º podem ser chamados de
+    segundo ou de terceiro.
     """
     problems = next((o for o in outputs if "avaliacoes_negativas_classificadas" in o), None)
     if problems is None:
         return []
     position = {row["categoria"]: row["posicao"] for row in problems["categorias"]}
     names = {row["categoria"]: row["nome"] for row in problems["categorias"]}
+    tied = {c: sum(p == position[c] for p in position.values()) for c in position}
     ordered = sorted(position.values())
     wrong = []
-    for sentence in re.split(r"(?<=[.!?])\s+|\n+", report):
+    for sentence in re.split(r"(?<=[.!?;])\s+|\n+", report):
         plain = _plain(sentence)
-        if not _RANKING_CLAIM.search(plain):
+        claims = list(_RANKING_CLAIM.finditer(plain))
+        if not claims:
             continue
-        named = [c for c, pattern in _CATEGORY_PATTERNS.items() if re.search(pattern, plain)]
+        named = [
+            c
+            for c, pattern in _CATEGORY_PATTERNS.items()
+            if c in position and re.search(pattern, plain)
+        ]
         if not named:
             continue
-        threshold = ordered[min(len(named), len(ordered)) - 1]
+        quoted = f"«{sentence.strip()[:120]}»"
+        ordinals = list(_ORDINAL_CLAIM.finditer(plain))
+        if ordinals:
+            claimed = {_ordinal_value(m) for m in ordinals}
+            if any(not any(o.start() <= m.start() < o.end() for o in ordinals) for m in claims):
+                claimed.add(1)  # a frase também aponta "o mais citado"
+            bad = [
+                c
+                for c in named
+                if not any(position[c] <= n < position[c] + tied[c] for n in claimed)
+            ]
+            if bad:
+                wrong.append(
+                    f"{quoted} (pela contagem, "
+                    + ", ".join(f"{names[c]} é o {position[c]}º" for c in bad)
+                    + ")"
+                )
+            continue
+        count = _COUNT_CLAIM.search(plain)
+        k = (_COUNT_WORDS.get(count.group(1)) or int(count.group(1))) if count else len(named)
+        threshold = ordered[min(k, len(ordered)) - 1]
         if any(position[c] > threshold for c in named):
-            top = sorted(position, key=position.get)[: len(named)]
+            top = [c for c in sorted(position, key=position.get) if position[c] <= threshold]
+            label = "o mais citado é" if threshold == 1 else f"os {k} mais citados são"
             wrong.append(
-                f"«{sentence.strip()[:120]}» (pela contagem, os {len(named)} mais citados são: "
-                + ", ".join(names[c] for c in top)
-                + ")"
+                f"{quoted} (pela contagem, {label}: " + ", ".join(names[c] for c in top) + ")"
             )
     return wrong
 
