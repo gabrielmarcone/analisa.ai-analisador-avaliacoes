@@ -61,6 +61,37 @@ def test_citacoes_conferidas_palavra_por_palavra():
     ]
 
 
+def _problems_output(counts):
+    rows = [
+        {"categoria": c, "nome": c.replace("_", " ").title(), "avaliacoes": n}
+        for c, n in counts.items()
+    ]
+    for row in rows:
+        row["posicao"] = 1 + sum(o["avaliacoes"] > row["avaliacoes"] for o in rows)
+    return {"avaliacoes_negativas_classificadas": 100, "categorias": rows}
+
+
+def test_ranking_de_problemas_conferido():
+    outputs = [
+        _problems_output(
+            {"nao_recebido": 86, "atendimento": 54, "produto_diferente": 52, "incompleto": 54}
+        )
+    ]
+    # Erro real visto num relatório: o 2º lugar é atendimento (empatado com incompleto).
+    wrong = "Os problemas mais citados são não recebimento (36,4%) e produto errado ou diferente."
+    found = agent.wrong_rankings(wrong, outputs)
+    assert len(found) == 1 and "Nao Recebido" in found[0]
+    ok = (
+        "O problema mais citado é não recebido. "
+        "Os mais citados são não recebimento e atendimento. "
+        "Os mais citados são não recebido e pedido incompleto (empatado em 2º). "
+        "Produto errado ou diferente está acima da referência."
+    )
+    assert agent.wrong_rankings(ok, outputs) == []
+    assert agent.wrong_rankings("Produto errado ou diferente é o principal problema.", outputs)
+    assert agent.wrong_rankings("O mais citado é X.", []) == []  # sem a ferramenta: não julga
+
+
 # ---------------------------------------------------------------------------
 # Cliente falso: classificador (saída JSON) e agente (ferramentas)
 # ---------------------------------------------------------------------------

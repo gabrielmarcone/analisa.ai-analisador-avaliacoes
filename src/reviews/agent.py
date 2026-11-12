@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -75,7 +76,12 @@ tendência recente, use `mes_com_mais_negativas`, `mes_com_menos_negativas`, \
 "o mais alto desde..." ou que "cresceu de forma consistente" se isso não estiver num desses campos.
 - Ao citar um trecho, apresente-o como exemplo do tipo de problema de onde ele veio (campo \
 `nome` de `exemplos_avaliacoes`). Um trecho é um exemplo, não "o que os clientes dizem": não \
-generalize a partir dele.
+generalize a partir dele. Recomendações se apoiam em números agregados; detalhes de um único \
+trecho (um modelo, uma função do produto, um caso de nota fiscal) não viram recomendação.
+- "Mais citado" e "principal problema" seguem só a posição (número de avaliações). Problemas \
+acima da referência são outra coisa: chame-os de "acima da referência", não de "mais citados".
+- Só relacione volume de vendas com negativas usando `relacao_volume_negativas`; sem relação \
+clara, não sugira que meses movimentados são piores.
 - Não mencione no texto nomes de ferramentas ou de campos (como posicao ou tendencia).
 - Diga o que os dados mostram e separe hipóteses de fatos ("pode indicar", "vale verificar").
 - Amostras pequenas (meses ou categorias com poucas avaliações) não sustentam conclusões \
@@ -273,6 +279,57 @@ def unsupported_quotes(report: str, outputs: list[dict]) -> list[str]:
     return missing
 
 
+_RANKING_CLAIM = re.compile(
+    r"mais citad|mais frequent|mais comu|principal problema|problema principal|maior problema"
+)
+_CATEGORY_PATTERNS = {
+    "atraso": r"atras",
+    "nao_recebido": r"nao receb|nao chegou",
+    "incompleto": r"incomplet",
+    "produto_diferente": r"produto errado|errado ou diferente|produto diferente|diferente do anunc",
+    "defeito_qualidade": r"defeit|avaria|qualidade",
+    "atendimento": r"atendimento|cancelamento|reembolso",
+    "outro": r"outro problema|outros problemas",
+    "sem_reclamacao": r"sem reclamacao",
+}
+
+
+def _plain(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def wrong_rankings(report: str, outputs: list[dict]) -> list[str]:
+    """Frases que chamam de "mais citado" algo que não está no topo pela contagem.
+
+    Uma frase que nomeia k tipos de problema como os mais citados só passa se todos
+    estiverem entre os k primeiros (empates contam como a mesma posição).
+    """
+    problems = next((o for o in outputs if "avaliacoes_negativas_classificadas" in o), None)
+    if problems is None:
+        return []
+    position = {row["categoria"]: row["posicao"] for row in problems["categorias"]}
+    names = {row["categoria"]: row["nome"] for row in problems["categorias"]}
+    ordered = sorted(position.values())
+    wrong = []
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", report):
+        plain = _plain(sentence)
+        if not _RANKING_CLAIM.search(plain):
+            continue
+        named = [c for c, pattern in _CATEGORY_PATTERNS.items() if re.search(pattern, plain)]
+        if not named:
+            continue
+        threshold = ordered[min(len(named), len(ordered)) - 1]
+        if any(position[c] > threshold for c in named):
+            top = sorted(position, key=position.get)[: len(named)]
+            wrong.append(
+                f"«{sentence.strip()[:120]}» (pela contagem, os {len(named)} mais citados são: "
+                + ", ".join(names[c] for c in top)
+                + ")"
+            )
+    return wrong
+
+
 # ---------------------------------------------------------------------------
 # Classificação das negativas do vendedor
 # ---------------------------------------------------------------------------
@@ -319,6 +376,7 @@ class AgentResult:
     revisions: int
     unsupported_quotes: list[str] = field(default_factory=list)
     revision_reasons: list[str] = field(default_factory=list)
+    wrong_rankings: list[str] = field(default_factory=list)
 
     @property
     def cost_usd(self) -> float:
@@ -341,7 +399,7 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
     ]
     usage_total = {key: 0 for key in [*llm.PRICES_USD_PER_MTOK, "thinking_tokens"]}
     calls = revisions = 0
-    body, unsupported, checked, bad_quotes, reasons = "", [], 0, [], []
+    body, unsupported, checked, bad_quotes, reasons, rankings = "", [], 0, [], [], []
 
     while calls < MAX_CALLS:
         response = client.messages.create(
@@ -396,9 +454,10 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
         outputs = [call["saida"] for call in tools.calls]
         unsupported, checked = unsupported_numbers(body, outputs)
         bad_quotes = unsupported_quotes(body, outputs)
+        rankings = wrong_rankings(body, outputs)
         if not body:
             raise RuntimeError("O modelo terminou sem escrever o relatório.")
-        if (unsupported or bad_quotes) and revisions < MAX_REVISIONS:
+        if (unsupported or bad_quotes or rankings) and revisions < MAX_REVISIONS:
             revisions += 1
             problems = []
             if unsupported:
@@ -410,6 +469,11 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
                 problems.append(
                     "estes trechos entre aspas não aparecem nas avaliações devolvidas: "
                     + " | ".join(bad_quotes)
+                )
+            if rankings:
+                problems.append(
+                    "estas frases chamam de mais citado um problema fora do topo: "
+                    + " | ".join(rankings)
                 )
             reasons.extend(problems)
             messages.append(
@@ -430,7 +494,7 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
         raise RuntimeError(f"O agente passou de {MAX_CALLS} chamadas sem terminar.")
 
     return AgentResult(
-        body, calls, usage_total, unsupported, checked, revisions, bad_quotes, reasons
+        body, calls, usage_total, unsupported, checked, revisions, bad_quotes, reasons, rankings
     )
 
 
@@ -445,9 +509,12 @@ def methodology(classification_cost: float, result: AgentResult, n_negatives: in
         problems.append("números " + ", ".join(result.unsupported))
     if result.unsupported_quotes:
         problems.append("citações " + " | ".join(result.unsupported_quotes))
+    if result.wrong_rankings:
+        problems.append("ranking " + " | ".join(result.wrong_rankings))
     check = (
-        f"Os {result.numbers_checked} números e todas as citações do texto foram conferidos "
-        "automaticamente com os resultados das ferramentas: todos conferem."
+        f"Os {result.numbers_checked} números, as citações e as menções ao problema mais "
+        "citado foram conferidos automaticamente com os resultados das ferramentas: "
+        "todos conferem."
         if not problems
         else "⚠️ Sem correspondência nos dados: " + "; ".join(problems) + ". Confira antes de usar."
     )
@@ -501,6 +568,7 @@ def write_report(
         "numeros_conferidos": result.numbers_checked,
         "numeros_sem_fonte": result.unsupported,
         "citacoes_sem_fonte": result.unsupported_quotes,
+        "rankings_errados": result.wrong_rankings,
         "custo_usd": round(classification_cost + result.cost_usd, 6),
         "tokens": result.usage,
         "ferramentas": tools.calls,
@@ -527,8 +595,8 @@ def generate(
     tools = SellerTools(df, seller_id, negatives, matrix, sellers.marketplace_problem_reference())
     result = run_agent(client, tools, limit_usd - class_cost)
     path = write_report(seller_id, result, tools, class_cost, output_dir)
-    problems = result.unsupported + result.unsupported_quotes
-    status = "todos conferem" if not problems else f"SEM FONTE: {problems}"
+    problems = result.unsupported + result.unsupported_quotes + result.wrong_rankings
+    status = "todos conferem" if not problems else f"A CONFERIR: {problems}"
     print(
         f"Relatório salvo em {path} · {result.numbers_checked} números ({status}) · "
         f"US$ {class_cost + result.cost_usd:.4f}"

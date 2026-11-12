@@ -163,6 +163,9 @@ def test_tendencia_e_meses_extremos(monkeypatch):
     assert out["mes_com_mais_negativas"]["mes"] == "2017-02"  # 100%, com volume mínimo
     assert out["mes_com_menos_negativas"]["mes"] == "2017-05"  # 0%; empate com 07: o primeiro
     assert out["mes_com_mais_avaliacoes"]["mes"] == "2017-06"
+    relation = out["relacao_volume_negativas"]
+    assert relation["meses_usados"] == 6 and -1 <= relation["correlacao_spearman"] <= 1
+    assert "correlação não mostra causa" == relation["cuidado"]
     trend = out["tendencia"]
     assert trend["ultimos_3_meses"]["meses"] == ["2017-05", "2017-06", "2017-07"]
     assert trend["ultimos_3_meses"]["pct_negativas"] == 12.5  # 1 de 8
@@ -170,9 +173,26 @@ def test_tendencia_e_meses_extremos(monkeypatch):
     assert trend["diferenca_pct_negativas_pontos_percentuais"] == -67.5
 
 
+@pytest.mark.parametrize(
+    "volumes, negatives, expected",
+    [
+        ([20, 30, 40, 50, 60, 70], [10, 20, 30, 40, 50, 60], "mais negativas"),
+        ([20, 30, 40, 50, 60, 70], [60, 50, 40, 30, 20, 10], "menos negativas"),
+        ([20, 30, 40, 50, 60, 70], [30, 60, 10, 50, 20, 40], "sem relação clara"),
+    ],
+)
+def test_relacao_volume_negativas(volumes, negatives, expected):
+    months = [
+        {"avaliacoes": v, "pct_negativas": n} for v, n in zip(volumes, negatives, strict=True)
+    ]
+    assert expected in sellers.volume_relation(months)["leitura"]
+    assert sellers.volume_relation(months[:5]) is None
+
+
 def test_evolucao_mensal(df):
     out = sellers.monthly(df, "B")
     assert out["tendencia"] is None and out["mes_com_mais_negativas"] is None  # pouco dado
+    assert out["relacao_volume_negativas"] is None
     meses = out["meses"]
     assert [m["mes"] for m in meses] == ["2017-01", "2017-03"]
     assert meses[1] == {"mes": "2017-03", "avaliacoes": 2, "pct_negativas": 50.0, "nota_media": 2.0}

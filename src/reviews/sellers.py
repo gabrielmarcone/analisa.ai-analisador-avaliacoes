@@ -30,6 +30,7 @@ SELLERS_FILE = "olist_sellers_dataset.csv"
 NEGATIVE = "negativa"
 MIN_REVIEWS_FOR_RANKING = 30  # vendedores com menos avaliações não entram no percentil
 MIN_MONTH_REVIEWS = 20  # meses com menos avaliações não entram em "pior/melhor mês"
+MIN_MONTHS_FOR_RELATION = 6  # mínimo de meses relevantes para medir volume × negativas
 MAX_QUOTE_CHARS = 280
 NO_CATEGORY = "sem categoria"
 
@@ -257,6 +258,34 @@ def _period(group: pd.DataFrame, months: list[str]) -> dict:
     }
 
 
+def volume_relation(months: list[dict]) -> dict | None:
+    """Correlação de Spearman entre volume mensal e % de negativas (meses relevantes).
+
+    Responde, com número, a pergunta "os meses de mais vendas são piores?", que o LLM
+    tenderia a responder olhando a tabela, e às vezes errado.
+    """
+    if len(months) < MIN_MONTHS_FOR_RELATION:
+        return None
+    frame = pd.DataFrame(months)
+    r = frame["avaliacoes"].corr(frame["pct_negativas"], method="spearman")
+    if pd.isna(r):
+        return None
+    r = round(float(r), 2)
+    strength = "sem relação clara" if abs(r) < 0.3 else "moderada" if abs(r) < 0.6 else "forte"
+    if strength == "sem relação clara":
+        reading = "sem relação clara: o volume do mês não acompanha a proporção de negativas"
+    elif r > 0:
+        reading = f"relação {strength}: meses com mais avaliações tendem a ter mais negativas"
+    else:
+        reading = f"relação {strength}: meses com mais avaliações tendem a ter menos negativas"
+    return {
+        "meses_usados": len(months),
+        "correlacao_spearman": r,
+        "leitura": reading,
+        "cuidado": "correlação não mostra causa",
+    }
+
+
 def monthly(df: pd.DataFrame, seller_id: str) -> dict:
     """Série mensal e um resumo da tendência já calculado (o LLM não lê tendência sozinho)."""
     part = seller_frame(df, seller_id)
@@ -293,6 +322,7 @@ def monthly(df: pd.DataFrame, seller_id: str) -> dict:
 
     return {
         "meses": rows,
+        "relacao_volume_negativas": volume_relation(relevant),
         "minimo_de_avaliacoes_para_mes_relevante": MIN_MONTH_REVIEWS,
         "meses_relevantes": len(relevant),
         "mes_com_mais_negativas": worst,
