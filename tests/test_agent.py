@@ -38,7 +38,10 @@ def test_numeros_aceitos_e_rejeitados():
     assert agent.unsupported_numbers(ok, outputs) == ([], 5)
     bad = "Negativas: 28% e 31,5% em 2018."
     missing, total = agent.unsupported_numbers(bad, outputs)
-    assert missing == ["31,5", "2018"] and total == 3  # 28 = arredondamento de 27,94
+    # 28 não vale como arredondamento de 27,94: um inteiro tem que existir como inteiro.
+    assert missing == ["28", "31,5", "2018"] and total == 3
+    # Os números das regras do próprio prompt valem sem estar nas ferramentas.
+    assert agent.unsupported_numbers("Nos últimos 3 meses, 2 pontos acima.", outputs) == ([], 2)
 
 
 def test_citacoes_conferidas_palavra_por_palavra():
@@ -214,8 +217,9 @@ def _text(text):
 class FakeClient:
     """Responde às chamadas do classificador e segue um roteiro para o agente."""
 
-    def __init__(self, script):
+    def __init__(self, script, bad_texts=()):
         self.script = list(script)
+        self.bad_texts = set(bad_texts)  # textos que o classificador "não consegue" classificar
         self.agent_calls = []
         self.classifier_calls = 0
         self.lock = threading.Lock()
@@ -227,6 +231,8 @@ class FakeClient:
                 self.classifier_calls += 1
             items = json.loads(kwargs["messages"][0]["content"].split("\n", 1)[1])
             answers = [{"id": item["id"], "categorias": ["atraso"]} for item in items]
+            if any(item["texto"] in self.bad_texts for item in items):
+                answers = answers[:-1]  # resposta fora do formato: falta um id
             return SimpleNamespace(
                 content=[_text(json.dumps({"respostas": answers}))],
                 stop_reason="end_turn",
@@ -253,6 +259,14 @@ def _tools(data):
 GOOD = "## Resumo\n- 50% das avaliações são negativas, com nota média 3."
 
 
+def _required_tools(prefix="r"):
+    return [_tool_use(f"{prefix}{i}", name) for i, name in enumerate(agent.REQUIRED_TOOLS)]
+
+
+def _classification(tools):
+    return agent.Classification(tools.negatives, tools.matrix, agent.Cost(0.0, 0.0))
+
+
 def test_laco_com_ferramentas_paralelas_erro_e_reescrita(data):
     tools = _tools(data)
     script = [
@@ -264,8 +278,14 @@ def test_laco_com_ferramentas_paralelas_erro_e_reescrita(data):
     client = FakeClient(script)
     result = agent.run_agent(client, tools)
 
-    assert result.body == GOOD and result.unsupported == [] and result.revisions == 1
-    assert result.calls == 4 and result.numbers_checked == 2
+    assert result.body == GOOD and result.findings.unsupported == [] and result.revisions == 1
+    assert result.calls == 4 and result.findings.numbers_checked == 2
+    # Não consultou o que o relatório precisa: fica registrado depois da única reescrita.
+    assert result.findings.missing_tools == [
+        "comparar_com_marketplace",
+        "evolucao_mensal",
+        "problemas_relatados",
+    ]
     assert result.cost_usd == pytest.approx(4 * (1000 * 0.10 + 200 * 0.50) / 1e6)
 
     first = client.agent_calls[0]
@@ -301,9 +321,9 @@ def test_citacao_inventada_pede_reescrita(data):
     ]
     client = FakeClient(script)
     result = agent.run_agent(client, _tools(data))
-    assert result.revisions == 1 and result.unsupported_quotes == []
+    assert result.revisions == 1 and result.findings.unsupported_quotes == []
     assert "trechos entre aspas" in client.agent_calls[2]["messages"][-1]["content"]
-    assert result.revision_reasons and "chegou quebrado" in result.revision_reasons[0]
+    assert any("chegou quebrado" in reason for reason in result.revision_reasons)
 
 
 def test_recomendacao_sem_apoio_pede_reescrita_e_fica_registrada(data):
@@ -319,11 +339,11 @@ def test_recomendacao_sem_apoio_pede_reescrita_e_fica_registrada(data):
     ]
     client = FakeClient(script)
     result = agent.run_agent(client, tools)
-    assert result.revisions == 1 and len(result.weak_recommendations) == 1
-    assert "Reduzir pedidos incompletos." in result.weak_recommendations[0]
+    assert result.revisions == 1 and len(result.findings.weak_recommendations) == 1
+    assert "Reduzir pedidos incompletos." in result.findings.weak_recommendations[0]
     assert "recomendações se apoiam" in client.agent_calls[2]["messages"][-1]["content"]
-    note = agent.methodology(agent.Cost(0.0, 0.0), result, 2)
-    assert "⚠️ Sem correspondência nos dados: recomendações «Reduzir" in note
+    note = agent.methodology(_classification(tools), result)
+    assert "⚠️ Não conferem: " in note and "recomendações «Reduzir" in note
 
 
 def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(data):
@@ -333,11 +353,13 @@ def test_numeros_sem_fonte_ficam_marcados_depois_da_reescrita(data):
         ("end_turn", bad),
         ("end_turn", bad),
     ]
-    result = agent.run_agent(FakeClient(script), _tools(data))
-    assert result.unsupported == ["99"] and result.revisions == 1
-    note = agent.methodology(agent.Cost(0.0, 0.0), result, 2)
-    assert "⚠️ Sem correspondência nos dados: números 99" in note
-    assert "referência do marketplace" not in note  # sem custo da referência, sem a frase
+    tools = _tools(data)
+    result = agent.run_agent(FakeClient(script), tools)
+    assert result.findings.unsupported == ["99"] and result.revisions == 1
+    note = agent.methodology(_classification(tools), result)
+    assert "⚠️ Não conferem: ferramentas não consultadas" in note and "números 99" in note
+    assert "Tudo confere" not in note
+    assert "custou" not in note  # sem custo da referência, sem a frase
 
 
 def test_paradas_inesperadas_e_limites(data, monkeypatch):
@@ -352,10 +374,7 @@ def test_paradas_inesperadas_e_limites(data, monkeypatch):
 
 
 def test_relatorio_completo_ponta_a_ponta(data, tmp_path, monkeypatch):
-    script = [
-        ("tool_use", [_tool_use("t1", "resumo_vendedor"), _tool_use("t2", "problemas_relatados")]),
-        ("end_turn", [_text(GOOD)]),
-    ]
+    script = [("tool_use", _required_tools()), ("end_turn", [_text(GOOD)])]
     client = FakeClient(script)
     reference = (REF, agent.Cost(0.0805, 0.0))
     path = agent.generate(
@@ -370,13 +389,15 @@ def test_relatorio_completo_ponta_a_ponta(data, tmp_path, monkeypatch):
     text = path.read_text(encoding="utf-8")
     assert text.startswith("# Relatório de avaliações · vendedor `A`")
     assert GOOD in text and "## Como este relatório foi feito" in text
-    assert "todos conferem" in text and "\r\n" not in text
+    assert "Tudo confere" in text and "\r\n" not in text
     assert "As 2 do vendedor foram classificadas" in text
+    assert "aplicado às 1500 avaliações" in text
     assert "A referência do marketplace custou US$ 0,0805 uma vez" in text
     audit = json.loads((tmp_path / "rel" / "vendedor_A_ferramentas.json").read_text("utf-8"))
-    assert audit["numeros_sem_fonte"] == [] and len(audit["ferramentas"]) == 2
-    assert audit["motivos_das_reescritas"] == []
-    problems = audit["ferramentas"][1]["saida"]
+    assert audit["numeros_sem_fonte"] == [] and len(audit["ferramentas"]) == 5
+    assert audit["motivos_das_reescritas"] == [] and audit["ferramentas_nao_consultadas"] == []
+    assert audit["negativas_sem_classificacao"] == []
+    problems = audit["ferramentas"][4]["saida"]
     assert problems["categorias"][0]["categoria"] == "atraso"
     cost = audit["custo_usd"]
     assert cost["classificacao"] == pytest.approx(0.0002) and cost["agente"] > 0
@@ -384,9 +405,7 @@ def test_relatorio_completo_ponta_a_ponta(data, tmp_path, monkeypatch):
     assert cost["gasto_nesta_execucao"] == pytest.approx(cost["total"])  # nada no cache ainda
 
     # De novo: a classificação vem do cache (nenhuma chamada nova ao classificador).
-    client2 = FakeClient(
-        [("tool_use", [_tool_use("t1", "resumo_vendedor")]), ("end_turn", [_text(GOOD)])]
-    )
+    client2 = FakeClient([("tool_use", _required_tools()), ("end_turn", [_text(GOOD)])])
     agent.generate(
         "A",
         data,
@@ -399,6 +418,152 @@ def test_relatorio_completo_ponta_a_ponta(data, tmp_path, monkeypatch):
     again = json.loads((tmp_path / "rel" / "vendedor_A_ferramentas.json").read_text("utf-8"))
     assert again["custo_usd"]["classificacao"] == pytest.approx(0.0002)  # custo do zero
     assert again["custo_usd"]["gasto_nesta_execucao"] == pytest.approx(again["custo_usd"]["agente"])
+
+
+def test_negativa_que_o_classificador_nao_classifica_fica_de_fora(data, tmp_path):
+    """Antes, a falha virava "outro problema" e inflava essa categoria sem aviso."""
+    negatives = sellers.commented_negatives(data.reviews, "A")
+    bad = negatives["texto"].iloc[0]
+    client = FakeClient([], bad_texts={bad})
+    result = agent.classify_negatives(
+        data.reviews, "A", client, cache_dir=tmp_path, progress=lambda _: None
+    )
+    assert result.unclassified == (negatives["review_id"].iloc[0],)
+    assert list(result.negatives["review_id"]) == [negatives["review_id"].iloc[1]]
+    assert result.matrix.shape == (1, K) and result.matrix[0, LABELS.index("outro")] == 0
+    out = sellers.problems(result.negatives, result.matrix, REF, len(result.unclassified))
+    assert out["avaliacoes_negativas_classificadas"] == 1
+    assert out["negativas_sem_classificacao"] == 1
+    assert "outro" not in [r["categoria"] for r in out["categorias"] if r["avaliacoes"]]
+
+    tools = agent.SellerTools(data, "A", result.negatives, result.matrix, REF, 1)
+    note = agent.methodology(result, agent.AgentResult("", 1, {}, 0))
+    assert "Das 2 do vendedor, 1 foram classificadas (1 ficaram sem classificação" in note
+    assert tools.run("problemas_relatados", {})["negativas_sem_classificacao"] == 1
+    # Sem cache e sem poder chamar a API (conferência), a classificação não roda.
+    with pytest.raises(SystemExit, match="não estão no cache"):
+        agent.classify_negatives(data.reviews, "A", cache_dir=tmp_path / "vazio", offline=True)
+
+
+def test_tabela_de_problemas_conferida_linha_a_linha():
+    rows = [
+        ("nao_recebido", "Não recebido", 1, 86, 36.4, 35.5, 0.9),
+        ("atendimento", "Atendimento, cancelamento ou reembolso", 2, 54, 22.9, 27.7, -4.8),
+        ("produto_diferente", "Produto errado ou diferente", 3, 52, 22.0, 17.5, 4.5),
+    ]
+    outputs = [
+        {
+            "avaliacoes_negativas_classificadas": 236,
+            "categorias": [
+                {
+                    "categoria": c,
+                    "nome": nome,
+                    "posicao": pos,
+                    "avaliacoes": n,
+                    "pct_das_negativas_com_comentario": pct,
+                    "pct_referencia_marketplace": ref,
+                    "diferenca_pontos_percentuais": diff,
+                }
+                for c, nome, pos, n, pct, ref, diff in rows
+            ],
+        }
+    ]
+    table = (
+        "## Principais problemas\n\n"
+        "| Problema | Avaliações | % | Referência | Diferença |\n|---|---|---|---|---|\n"
+        "| Não recebido | 86 | 36,4% | 35,5% | +0,9 p.p. |\n"
+        "| Atendimento, cancelamento ou reembolso | 54 | 22,9% | 27,7% | −4,8 p.p. |\n"
+        "| Produto errado ou diferente | 52 | 22,0% | 17,5% | +4,5 p.p. |\n\n## Entregas\n| 99 |"
+    )
+    assert agent.wrong_table_rows(table, outputs) == []
+    swapped = table.replace("| 54 | 22,9%", "| 52 | 22,9%")
+    assert agent.wrong_table_rows(swapped, outputs)[0].startswith("«Atendimento")
+    sign = table.replace("−4,8 p.p.", "+4,8 p.p.")
+    assert "+4,8" in agent.wrong_table_rows(sign, outputs)[0]
+    lines = table.split("\n")
+    lines[4], lines[6] = lines[6], lines[4]
+    assert agent.wrong_table_rows("\n".join(lines), outputs) == [
+        "a tabela não segue a ordem do mais citado para o menos citado"
+    ]
+
+
+def test_citacao_atribuida_ao_tipo_de_problema_e_a_nota_certos():
+    negatives = pd.DataFrame(
+        {
+            "texto": ["Comprei e até hoje não chegou nada", "Veio quebrado, péssima qualidade"],
+            "review_score": [1, 2],
+        }
+    )
+    matrix = np.zeros((2, K), dtype=int)
+    matrix[0, LABELS.index("nao_recebido")] = 1
+    matrix[1, LABELS.index("defeito_qualidade")] = 1
+    ok = (
+        '- Não recebido: "Comprei e até hoje não chegou nada" (nota 1)\n'
+        '- **Defeito ou má qualidade:** *"Veio quebrado, péssima qualidade"* (nota 2)\n'
+        'Um cliente disse: "Veio quebrado, péssima qualidade".'  # linha sem tipo: não julga
+    )
+    assert agent.misattributed_quotes(ok, negatives, matrix) == []
+    wrong_type = '- Atraso na entrega: "Comprei e até hoje não chegou nada"'
+    assert agent.misattributed_quotes(wrong_type, negatives, matrix) == [
+        "«Comprei e até hoje não chegou nada» (a avaliação é de: Não recebido)"
+    ]
+    wrong_note = '- Não recebido: "Comprei e até hoje não chegou nada" (nota 2)'
+    assert (
+        "nota 2; a avaliação tem nota 1"
+        in agent.misattributed_quotes(wrong_note, negatives, matrix)[0]
+    )
+
+
+def test_relatorio_sem_as_ferramentas_obrigatorias_pede_reescrita(data):
+    script = [
+        ("tool_use", [_tool_use("t1", "resumo_vendedor")]),
+        ("end_turn", [_text(GOOD)]),
+        ("tool_use", _required_tools()),
+        ("end_turn", [_text(GOOD)]),
+    ]
+    client = FakeClient(script)
+    result = agent.run_agent(client, _tools(data))
+    assert "consulte também estas ferramentas" in client.agent_calls[2]["messages"][-1]["content"]
+    assert result.revisions == 1 and result.findings.flags() == []
+
+
+def test_conferir_relatorio_publicado_sem_api(data, tmp_path):
+    reference = (REF, agent.Cost(0.0805, 0.0))
+    path = agent.generate(
+        "A",
+        data,
+        client=FakeClient([("tool_use", _required_tools()), ("end_turn", [_text(GOOD)])]),
+        output_dir=tmp_path / "rel",
+        cache_dir=tmp_path / "cache",
+        reference=reference,
+    )
+    original = path.read_text(encoding="utf-8")
+    check = agent.verify_report(path, data, reference, tmp_path / "cache")
+    assert check.problems == [] and check.findings.numbers_checked == 2
+
+    # Atualizar reescreve só a metodologia e a auditoria; o texto do agente fica intacto.
+    audit_path = tmp_path / "rel" / "vendedor_A_ferramentas.json"
+    path.write_text(original.replace("Tudo confere.", "texto antigo."), encoding="utf-8")
+    agent.verify_report(path, data, reference, tmp_path / "cache", update=True)
+    assert path.read_text(encoding="utf-8") == original
+    assert json.loads(audit_path.read_text("utf-8"))["conferido_em"]
+
+    # Um número trocado no texto é pego, sem chamar a API.
+    path.write_text(original.replace("50% das", "60% das"), encoding="utf-8")
+    assert agent.verify_report(path, data, reference, tmp_path / "cache").findings.unsupported == [
+        "60"
+    ]
+
+    # Se os dados mudaram, as ferramentas não batem com o registrado e nada é reescrito.
+    path.write_text(original, encoding="utf-8")
+    audit = json.loads(audit_path.read_text("utf-8"))
+    audit["ferramentas"][0]["saida"]["avaliacoes"] = 999
+    audit_path.write_text(json.dumps(audit), encoding="utf-8")
+    tampered = path.read_text(encoding="utf-8").replace("Tudo confere.", "x.")
+    path.write_text(tampered, encoding="utf-8")
+    check = agent.verify_report(path, data, reference, tmp_path / "cache", update=True)
+    assert check.tool_mismatches == ["resumo_vendedor"] and check.problems
+    assert path.read_text(encoding="utf-8") == tampered
 
 
 def test_referencia_usa_o_mesmo_classificador_e_o_cache(tmp_path):
@@ -436,9 +601,10 @@ def test_referencia_usa_o_mesmo_classificador_e_o_cache(tmp_path):
     assert str(cost_again) == "US$ 0.0008 (gasto agora: US$ 0.0000)"
 
 
-def test_sdk_de_verdade_devolve_o_raciocinio_ao_modelo(data):
+def test_sdk_de_verdade_devolve_o_raciocinio_ao_modelo(data, monkeypatch):
     """Com o pacote anthropic real (servidor local): o bloco de raciocínio volta intacto."""
     anthropic = pytest.importorskip("anthropic")
+    monkeypatch.setattr(agent, "REQUIRED_TOOLS", ("resumo_vendedor",))  # o foco é o SDK
     import http.server
 
     bodies = []
@@ -486,7 +652,7 @@ def test_sdk_de_verdade_devolve_o_raciocinio_ao_modelo(data):
     finally:
         server.shutdown()
 
-    assert result.body == GOOD and result.unsupported == []
+    assert result.body == GOOD and result.findings.unsupported == []
     echoed = bodies[1]["messages"][1]
     assert echoed["role"] == "assistant"
     assert echoed["content"][0] == {

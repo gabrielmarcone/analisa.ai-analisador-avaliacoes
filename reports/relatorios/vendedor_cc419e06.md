@@ -62,17 +62,7 @@ Exemplo de "produto errado ou diferente": "Comprei a escova mas nao veio a mesma
 
 ## Como este relatório foi feito
 
-- **Base:** base pública da Olist (2016–2018), só pedidos com produtos de um único vendedor.
-  Nota, negativas, comparações e evolução usam todas as avaliações, com ou sem comentário;
-  o atraso usa todos os pedidos entregues. Vendedor e marketplace são sempre medidos na
-  mesma base.
-- **Tipos de problema:** só as avaliações negativas com comentário têm texto para
-  classificar. As 174 do vendedor foram classificadas pelo Claude Haiku 5.5 (zero-shot), o
-  melhor modelo do projeto nessa tarefa (F1 macro 0,881 no teste). A referência do
-  marketplace é o mesmo classificador aplicado às 1500 avaliações negativas com comentário
-  sorteadas do projeto, para que vendedor e marketplace sejam medidos com a mesma régua.
-- **Texto:** escrito por um agente (claude-haiku-5-5) que só consulta números calculados com
-  pandas. Os 116 números, as citações, as menções ao problema mais citado e as recomendações sobre tipos de problema foram conferidos automaticamente com os resultados das ferramentas: todos conferem.
-- **Custo:** US$ 0,0143 para gerar este relatório do zero: classificação das
-  negativas, US$ 0,0111; agente (3 chamadas),
-  US$ 0,0032. A referência do marketplace custou US$ 0,0805 uma vez e serve a todos os relatórios.
+- **Base:** base pública da Olist (2016–2018), só pedidos com produtos de um único vendedor. Nota, negativas, comparações e evolução usam todas as avaliações, com ou sem comentário; o atraso usa todos os pedidos entregues. Vendedor e marketplace são sempre medidos na mesma base.
+- **Tipos de problema:** só as avaliações negativas com comentário têm texto para classificar. As 174 do vendedor foram classificadas pelo Claude Haiku 5.5 (zero-shot), o melhor modelo do projeto nessa tarefa (F1 macro 0,881 no teste). A referência do marketplace é o mesmo classificador aplicado às 1500 avaliações negativas com comentário sorteadas do projeto, para que vendedor e marketplace sejam medidos com a mesma régua.
+- **Texto:** escrito por um agente (claude-haiku-5-5) que só consulta números calculados com pandas. Conferência automática (116 números): cada número do texto existe nos resultados das ferramentas; a tabela de problemas bate, linha a linha, com a contagem; cada citação é literal e vem de uma avaliação do tipo de problema a que é atribuída; as menções ao problema mais citado e as recomendações sobre tipos de problema batem com a contagem e com a referência. Tudo confere.
+- **Custo:** US$ 0,0143 para gerar este relatório do zero: classificação das negativas, US$ 0,0111; agente (3 chamadas), US$ 0,0032. A referência do marketplace custou US$ 0,0805 uma vez e serve a todos os relatórios.

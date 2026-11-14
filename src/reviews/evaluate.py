@@ -20,6 +20,9 @@ from sklearn.metrics import f1_score, precision_recall_fscore_support
 
 from reviews.paths import RESULTS_FILE
 
+BOOTSTRAP_SAMPLES = 2000
+BOOTSTRAP_SEED = 42
+
 # ---------------------------------------------------------------------------
 # Métricas
 # ---------------------------------------------------------------------------
@@ -40,9 +43,13 @@ def evaluate_classification(y_true, y_pred, labels: Sequence[str]) -> dict:
         y_true, y_pred, labels=labels, zero_division=0
     )
     macro = f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)
+    one_hot = np.asarray(labels, dtype=object)
     return {
         "n": int(len(y_true)),
         "f1_macro": float(macro),
+        "f1_macro_ic95": bootstrap_f1_macro(
+            y_true[:, None] == one_hot[None, :], y_pred[:, None] == one_hot[None, :]
+        ),
         "acuracia": float((y_true == y_pred).mean()),
         "por_classe": _per_class(labels, precision, recall, f1, support),
     }
@@ -64,11 +71,42 @@ def evaluate_multilabel(y_true, y_pred, labels: Sequence[str]) -> dict:
     return {
         "n": int(len(yt)),
         "f1_macro": float(f1_score(yt, yp, average="macro", zero_division=0)),
+        "f1_macro_ic95": bootstrap_f1_macro(yt, yp),
         "f1_micro": float(f1_score(yt, yp, average="micro", zero_division=0)),
         "conjunto_identico": float((yt == yp).all(axis=1).mean()),
         "jaccard_medio": float(jaccard.mean()),
         "por_classe": _per_class(list(labels), precision, recall, f1, support),
     }
+
+
+def _f1_macro_from_counts(tp, fp, fn) -> np.ndarray:
+    """F1 macro a partir das contagens por classe (última dimensão); 0 quando 0/0."""
+    denominator = 2 * tp + fp + fn
+    f1 = np.divide(2 * tp, denominator, out=np.zeros(denominator.shape), where=denominator > 0)
+    return f1.mean(axis=-1)
+
+
+def bootstrap_f1_macro(
+    truth, predicted, samples: int = BOOTSTRAP_SAMPLES, seed: int = BOOTSTRAP_SEED
+) -> list[float]:
+    """Intervalo de 95% do F1 macro por bootstrap (reamostra as avaliações com reposição).
+
+    Recebe matrizes binárias n×k (uma coluna por classe). Semente fixa: o mesmo modelo
+    no mesmo conjunto sempre dá o mesmo intervalo.
+    """
+    yt = np.asarray(truth, dtype=bool)
+    yp = np.asarray(predicted, dtype=bool)
+    rng = np.random.default_rng(seed)
+    scores = np.empty(samples)
+    for start in range(0, samples, 250):  # em blocos, para não estourar a memória
+        idx = rng.integers(0, len(yt), size=(min(250, samples - start), len(yt)))
+        t, p = yt[idx], yp[idx]
+        tp = (t & p).sum(axis=1)
+        fp = (~t & p).sum(axis=1)
+        fn = (t & ~p).sum(axis=1)
+        scores[start : start + len(idx)] = _f1_macro_from_counts(tp, fp, fn)
+    low, high = np.percentile(scores, [2.5, 97.5])
+    return [float(low), float(high)]
 
 
 def _per_class(labels, precision, recall, f1, support) -> dict:

@@ -93,6 +93,7 @@ tempo, comparação com o marketplace e recomendações.
 python -m reviews.agent vendedores                    # quem tem mais avaliações negativas
 python -m reviews.agent relatorio --top 3 --simular   # mostra os números, sem chamar a API
 python -m reviews.agent relatorio --top 3             # gera os relatórios em reports/relatorios/
+python -m reviews.agent conferir                      # reconfere os relatórios publicados, sem API
 ```
 
 - **Dados primeiro, texto depois.** Os números vêm de funções em pandas
@@ -110,14 +111,26 @@ python -m reviews.agent relatorio --top 3             # gera os relatórios em r
   marketplace medidos com a mesma régua (comparar rótulos do LLM com rótulos humanos
   inflaria, por exemplo, "outro problema", que o LLM marca um pouco mais que a
   anotação).
-- **Verificação automática:** cada número do relatório é conferido com o que as
-  ferramentas devolveram; cada citação entre aspas, com o texto original da
-  avaliação; cada frase que aponta "o problema mais citado", com a contagem; e cada
-  recomendação sobre um tipo de problema, que precisa estar entre os 3 mais citados ou
-  2 pontos acima da referência. Se algo não bater, o agente reescreve uma vez, e o que
-  sobrar fica marcado no próprio relatório. Cada relatório vem com um arquivo
-  `_ferramentas.json` que registra todas as consultas e os motivos de cada reescrita,
-  para auditoria.
+- **Conferência automática** de cada texto contra o que as ferramentas devolveram:
+  - cada número precisa existir nos resultados (um inteiro, como inteiro: "28" não passa
+    como arredondamento de 27,94);
+  - a tabela de problemas é conferida linha a linha: só os números daquele tipo, com o
+    sinal certo e na ordem do mais citado;
+  - cada citação precisa ser literal e vir de uma avaliação do tipo de problema e da
+    nota a que é atribuída;
+  - "o mais citado", "o terceiro mais citado" e "os três mais citados" batem com a
+    contagem;
+  - cada recomendação sobre um tipo de problema precisa estar entre os 3 mais citados ou
+    2 pontos acima da referência;
+  - o relatório só é aceito depois de consultar as cinco ferramentas de dados.
+
+  Se algo não bater, o agente reescreve uma vez, e o que sobrar fica marcado no próprio
+  relatório. Cada relatório vem com um `_ferramentas.json` que registra as consultas e
+  os motivos de cada reescrita. `conferir` recalcula todas as consultas a partir dos
+  dados e do cache, compara com o registrado e refaz as conferências, sem chamar a API.
+- **Falha do classificador não vira categoria.** Uma negativa que o classificador não
+  consegue classificar fica de fora das porcentagens e é contada à parte no relatório
+  (na Fase 5, ela contava como erro do modelo, o certo para medir o modelo).
 - **Comparações prontas:** ranking dos problemas, pior e melhor mês, últimos 3 meses
   contra os 3 anteriores e a relação entre volume e negativas (correlação de Spearman)
   vêm calculados das ferramentas, porque um LLM lendo uma tabela de meses erra esse
@@ -138,18 +151,19 @@ Cada relatório custou entre US$ 0,014 e US$ 0,018 para gerar do zero (classific
 negativas e agente); a referência do marketplace custou US$ 0,08 uma vez e serve a todos.
 O custo de cada um está na seção "Como este relatório foi feito".
 
-O verificador garante números, citações, o "mais citado" e o apoio das recomendações
-sobre tipos de problema, não toda a interpretação: a redação ainda pode simplificar uma
-comparação, dar peso demais a um único exemplo ou sugerir uma causa que os dados não
-medem. Por isso os relatórios publicados aqui foram lidos por uma pessoa antes de entrar
+A conferência prova que cada número existe nos dados, não que foi usado no lugar certo
+(fora da tabela, um número de outro campo passa); também não cobre toda a
+interpretação: a redação ainda pode simplificar uma comparação, dar peso demais a um
+único exemplo ou sugerir uma causa que os dados não medem. Por isso os relatórios publicados aqui foram lidos por uma pessoa antes de entrar
 no repositório. As leituras das versões anteriores encontraram comparações erradas entre
 meses, um "segundo problema mais citado" trocado, recomendações tiradas de um único
 comentário ou de um problema no mesmo patamar do marketplace, uma referência medida com
 outra régua, nota e atraso medidos só nas avaliações com comentário e um verificador que
-marcava como erro um "terceiro mais citado" correto; cada tipo de erro virou uma
-correção no código (comparações prontas, verificações automáticas, referência pelo mesmo
-classificador, a base certa para cada número e regras no prompt), e não uma edição
-manual do texto.
+marcava como erro um "terceiro mais citado" correto; uma revisão do código achou ainda
+que uma falha do classificador viraria "outro problema" sem aviso. Cada tipo de erro
+virou uma correção no código (comparações prontas, conferências automáticas, referência
+pelo mesmo classificador, a base certa para cada número e regras no prompt), e não uma
+edição manual do texto.
 
 ### Resultados
 
@@ -174,11 +188,13 @@ Modelos publicados no Hugging Face Hub:
 
 **Tipo de problema: o LLM sem treino vence com folga.** O Claude Haiku 5.5, só com as regras
 do guia de anotação e nenhum exemplo, chega a F1 macro de 0,881 (intervalo de 95% por
-bootstrap: 0,844 a 0,907), contra 0,696 do BERTimbau e 0,678 do baseline, e acerta o
+bootstrap, gravado em `resultados.json`: 0,844 a 0,909), contra 0,696 do BERTimbau e
+0,678 do baseline, e acerta o
 conjunto exato de rótulos em 78% das avaliações (BERTimbau 67%, baseline 50%). É melhor
 em todas as categorias, inclusive em **"sem reclamação"** (0,84), que o BERTimbau nunca
-previu por ter só 14 exemplos no treino: o LLM só precisa da definição. "Outro problema"
-segue a categoria mais difícil para todos (0,65), por ser a mais subjetiva. Com 750
+previu por ter só 14 exemplos no treino: o LLM só precisa da definição. Entre os sete
+tipos de problema, "outro problema" segue o mais difícil para os três modelos (0,65 no
+LLM), por ser o mais subjetivo. Com 750
 avaliações de treino, regras explícitas valem mais que exemplos.
 
 **Sentimento: o BERTimbau continua na frente.** O LLM (0,935) fica um pouco acima do
@@ -249,6 +265,7 @@ O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados
 | Cada número do relatório é conferido automaticamente com as ferramentas | Impede números inventados ("alucinação"); o que não bater fica marcado. |
 | Relatório por vendedor só com pedidos de um único vendedor | Num pedido com vários vendedores, a avaliação não diz de quem é a culpa. |
 | Relatórios: nota e negativas sobre todas as avaliações; atraso sobre todos os pedidos entregues | Só 41% das avaliações têm comentário, e quem está insatisfeito escreve mais; medir tudo nas comentadas mostraria vendedores e marketplace piores do que são. |
+| Negativa que o classificador não classifica fica fora das porcentagens do relatório | Contá-la como "outro problema" inflaria essa categoria sem ninguém ver. |
 
 ## Estrutura
 

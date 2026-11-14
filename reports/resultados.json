@@ -149,6 +149,10 @@
         "custo_total_usd": 0.024525599999999998,
         "custo_usd_por_1000": 0.049051199999999996,
         "f1_macro": 0.8808296501020294,
+        "f1_macro_ic95": [
+          0.8440908968977946,
+          0.9088642221826969
+        ],
         "f1_micro": 0.9015405224380442,
         "falhas": 0,
         "hiperparametros": {
@@ -215,7 +219,7 @@
             "suporte": 9
           }
         },
-        "registrado_em": "2026-11-12T00:23:48+00:00",
+        "registrado_em": "2026-11-14T13:34:45+00:00",
         "tokens": {
           "cache_creation_input_tokens": 0,
           "cache_read_input_tokens": 49680,
@@ -374,6 +378,10 @@
         "custo_total_usd": 0.013807,
         "custo_usd_por_1000": 0.055228,
         "f1_macro": 0.8990644713237004,
+        "f1_macro_ic95": [
+          0.8700624292276752,
+          0.9243731281670268
+        ],
         "f1_micro": 0.9051490514905149,
         "falhas": 0,
         "hiperparametros": {
@@ -440,7 +448,7 @@
             "suporte": 8
           }
         },
-        "registrado_em": "2026-11-12T00:22:59+00:00",
+        "registrado_em": "2026-11-14T13:34:45+00:00",
         "tokens": {
           "cache_creation_input_tokens": 0,
           "cache_read_input_tokens": 24840,
@@ -525,6 +533,10 @@
         "custo_total_usd": 0.052446900000000005,
         "custo_usd_por_1000": 0.014129014008620691,
         "f1_macro": 0.9348165506633301,
+        "f1_macro_ic95": [
+          0.9260627727685642,
+          0.9433424610479006
+        ],
         "falhas": 0,
         "hiperparametros": {
           "configuracao": "f2dab804293b",
@@ -553,7 +565,7 @@
             "suporte": 2636
           }
         },
-        "registrado_em": "2026-11-12T00:22:33+00:00",
+        "registrado_em": "2026-11-14T13:37:52+00:00",
         "tokens": {
           "cache_creation_input_tokens": 2712,
           "cache_read_input_tokens": 98310,
@@ -636,6 +648,10 @@
         "custo_total_usd": 0.05226482,
         "custo_usd_por_1000": 0.014079962284482758,
         "f1_macro": 0.9355909656149686,
+        "f1_macro_ic95": [
+          0.9266615326702412,
+          0.9439559687750946
+        ],
         "falhas": 0,
         "hiperparametros": {
           "configuracao": "f2dab804293b",
@@ -664,7 +680,7 @@
             "suporte": 2636
           }
         },
-        "registrado_em": "2026-11-12T00:21:13+00:00",
+        "registrado_em": "2026-11-14T13:37:51+00:00",
         "tokens": {
           "cache_creation_input_tokens": 0,
           "cache_read_input_tokens": 101022,
