@@ -5,6 +5,7 @@ BERT minúsculo criado aqui mesmo (sem baixar nada) e só roda se PyTorch, Trans
 Accelerate estiverem instalados (``requirements-bert.txt``); sem eles, é pulado.
 """
 
+import json
 from functools import partial
 
 import numpy as np
@@ -89,9 +90,34 @@ def test_model_card_com_resultados(tmp_path):
     assert card.startswith("---\nlanguage: pt\nlicense: cc-by-nc-sa-4.0\n")
     assert "| BERTimbau ajustado | teste | 0,740 | 500 |" in card
     assert "| Baseline TF-IDF | teste | 0,680 | 500 |" in card
-    assert "Atraso na entrega" in card
-    assert 'model="gabriel/bertimbau-olist-problemas"' in card
+    assert "| Atraso na entrega | `atraso` | 0,500 | 3 |" in card
+    assert 'repo = "gabriel/bertimbau-olist-problemas"' in card
+    assert "https://huggingface.co/gabriel/bertimbau-olist-sentimento" in card
+    assert "se nenhuma passa, entra a mais provável" in card
     assert "não comercial" in card
+    # Sem LLM nem latência registrados, não há parágrafo de comparação.
+    assert "No mesmo teste" not in card and "ms por avaliação" not in card
+
+    llm = {"f1_macro": 0.88, "n": 500, "modelo": "Claude Haiku 5.5 (zero-shot)"}
+    save_result("problemas", "teste", "llm_zero_shot", llm, path)
+    card = bert.model_card("problemas", load_results(path), "gabriel/bertimbau-olist-problemas")
+    assert "| Claude Haiku 5.5 (zero-shot) | teste | 0,880 | 500 |" in card
+    assert "chega a F1 macro 0,880; este modelo, a 0,740." in card
+
+
+def test_model_cards_com_os_resultados_do_projeto():
+    """Os cards publicados saem do resultados.json versionado; nada é digitado à mão."""
+    results = load_results(bert.REPORTS_DIR / "resultados.json")
+    if not results:
+        pytest.skip("resultados.json ausente")
+    for task in (TASK_SENTIMENT, TASK_PROBLEMS):
+        card = bert.model_card(task, results, f"gmarconems/bertimbau-olist-{task}")
+        test = results[task]["teste"]
+        ours = bert.fmt_br(test["bertimbau"]["f1_macro"])
+        assert f"| BERTimbau ajustado | teste | {ours} |" in card
+        assert f"| {test['llm_zero_shot']['modelo']} | teste |" in card
+        assert "a validação escolheu a época" in card
+        assert "{" not in card.split("```")[0]  # nenhum campo do modelo ficou sem preencher
 
 
 def test_model_card_sem_resultados():
@@ -99,11 +125,23 @@ def test_model_card_sem_resultados():
     assert "Sem resultados registrados" in card
 
 
-def test_publicar_exige_token(monkeypatch):
+def test_publicar_exige_token(tmp_path, monkeypatch):
     pytest.importorskip("huggingface_hub")
     monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.setattr(bert, "ENV_FILE", tmp_path / ".env")  # não lê o .env de quem roda
     with pytest.raises(SystemExit, match="HF_TOKEN"):
         bert.publish("gabriel")
+    with pytest.raises(SystemExit, match="HF_TOKEN"):
+        bert.update_cards("gabriel")
+
+
+def test_token_vem_do_env(tmp_path, monkeypatch):
+    pytest.importorskip("dotenv")
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    env = tmp_path / ".env"
+    env.write_text("HF_TOKEN=hf_do_arquivo\n", encoding="utf-8")
+    monkeypatch.setattr(bert, "ENV_FILE", env)
+    assert bert._hf_token() == "hf_do_arquivo"
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +272,7 @@ def test_publicar_envia_pasta_e_model_card(tmp_path, monkeypatch):
 
     monkeypatch.setattr(huggingface_hub, "HfApi", FakeApi)
     monkeypatch.setenv("HF_TOKEN", "hf_fake")
+    monkeypatch.setattr(bert, "ENV_FILE", tmp_path / ".env")
     monkeypatch.setattr(bert, "MODELS_DIR", tmp_path / "models")
     monkeypatch.setattr(bert, "load_results", lambda: {})
     folder = bert.model_dir("sentimento")
@@ -252,3 +291,143 @@ def test_publicar_envia_pasta_e_model_card(tmp_path, monkeypatch):
     # Sem modelo treinado, não publica nada.
     with pytest.raises(SystemExit, match="Treine antes"):
         bert.publish("gabriel", tasks=["problemas"])
+
+
+def test_atualizar_cards_envia_so_o_readme(tmp_path, monkeypatch, capsys):
+    huggingface_hub = pytest.importorskip("huggingface_hub")
+    calls = []
+
+    class FakeApi:
+        def __init__(self, token):
+            calls.append(("token", token))
+
+        def upload_file(self, **kwargs):
+            calls.append(("upload_file", kwargs))
+
+    monkeypatch.setattr(huggingface_hub, "HfApi", FakeApi)
+    monkeypatch.setattr(bert, "ENV_FILE", tmp_path / ".env")
+    monkeypatch.setattr(bert, "load_results", lambda: {})
+
+    # Simulação: mostra os cards e não precisa de token nem chama o Hub.
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    assert bert.update_cards("gabriel", dry_run=True) == []
+    out = capsys.readouterr().out
+    assert "gabriel/bertimbau-olist-sentimento · README.md" in out
+    assert "gabriel/bertimbau-olist-problemas · README.md" in out
+    assert calls == []
+
+    monkeypatch.setenv("HF_TOKEN", "hf_fake")
+    urls = bert.update_cards("gabriel")
+    assert urls == [
+        "https://huggingface.co/gabriel/bertimbau-olist-sentimento",
+        "https://huggingface.co/gabriel/bertimbau-olist-problemas",
+    ]
+    assert "hf_fake" not in capsys.readouterr().out  # o token nunca é impresso
+    uploads = [c[1] for c in calls if c[0] == "upload_file"]
+    assert [u["repo_id"] for u in uploads] == [
+        "gabriel/bertimbau-olist-sentimento",
+        "gabriel/bertimbau-olist-problemas",
+    ]
+    for upload in uploads:  # só o README.md; nenhum peso é reenviado
+        assert upload["path_in_repo"] == "README.md" and upload["repo_type"] == "model"
+        assert upload["path_or_fileobj"].decode("utf-8").startswith("---\nlanguage: pt")
+
+
+# ---------------------------------------------------------------------------
+# O código do "Como usar" dos cards
+# ---------------------------------------------------------------------------
+
+
+def _card_code(task: str, repo: str) -> str:
+    card = bert.model_card(task, {}, repo)
+    return card.split("```python\n", 1)[1].split("```", 1)[0]
+
+
+def test_exemplos_do_card_batem_com_a_conferencia_da_demo():
+    """As saídas mostradas no card são as do modelo publicado, gravadas pela demo."""
+    path = bert.REPORTS_DIR / "demo_conferencia.json"
+    if not path.is_file():
+        pytest.skip("demo_conferencia.json ausente")
+    examples = {e["texto"]: e for e in json.loads(path.read_text(encoding="utf-8"))["exemplos"]}
+
+    sentiment = _card_code(TASK_SENTIMENT, "u/r")
+    text = "Ótimo. Chegou antes do prazo e a qualidade é excelente. Recomendo!"
+    shown = examples[text]
+    assert f'"{text}"' in sentiment and shown["sentimento"] == "positiva"
+    assert f"'score': {shown['prob_sentimento']['positiva']:.3f}" in sentiment
+
+    problems = _card_code(TASK_PROBLEMS, "u/r")
+    broken = "Veio quebrado. A tampa veio rachada e o aparelho não liga. Quero devolver."
+    assert f"# {examples[broken]['problemas']!r}" in problems
+    vague = examples["ruim"]
+    assert f"# {vague['problemas']!r}" in problems
+    assert max(vague["prob_problemas"].values()) < 0.5  # o exemplo ilustra a regra 2
+    best = max(vague["prob_problemas"], key=vague["prob_problemas"].get)
+    assert best == vague["problemas"][0]
+    assert f"com {vague['prob_problemas'][best]:.2f}".replace(".", ",") in problems
+
+
+@pytest.fixture
+def saved_classifiers(tiny_bert, tmp_path):
+    """Modelos de classificação minúsculos, salvos como os publicados no Hub."""
+    folders = {}
+    for task in (TASK_SENTIMENT, TASK_PROBLEMS):
+        tokenizer, model = bert.load_model(task, tiny_bert)
+        folder = tmp_path / f"publicado-{task}"
+        model.save_pretrained(folder)
+        tokenizer.save_pretrained(folder)
+        # Barras normais: o caminho entra como texto no código do card, e as barras
+        # invertidas do Windows (C:\Users\...) virariam escapes do Python.
+        folders[task] = folder.as_posix()
+    return folders
+
+
+def test_codigo_do_card_de_sentimento_roda(saved_classifiers):
+    code = _card_code(TASK_SENTIMENT, saved_classifiers[TASK_SENTIMENT])
+    namespace = {}
+    exec(code, namespace)  # o código do card, como está
+    output = namespace["classifier"]("chegou rapido", truncation=True, max_length=128)
+    assert len(output) == 1 and output[0]["label"] in {"negativa", "positiva"}
+
+
+def test_codigo_do_card_de_problemas_segue_as_regras_do_projeto(saved_classifiers):
+    import torch
+
+    code = _card_code(TASK_PROBLEMS, saved_classifiers[TASK_PROBLEMS])
+    namespace = {}
+    exec(code, namespace)  # carrega o modelo salvo e roda os exemplos do card
+    tipos_de_problema = namespace["tipos_de_problema"]
+    labels, prob = tipos_de_problema("veio quebrado")
+    assert list(prob) == list(LABELS) and labels
+
+    # Com probabilidades escolhidas, o código do card dá o mesmo que o apply_rules.
+    real_model = namespace["model"]
+    cases = np.array(
+        [
+            [0.9, 0.1, 0.1, 0.1, 0.8, 0.1, 0.1, 0.1],  # dois tipos passam
+            [0.1, 0.2, 0.1, 0.1, 0.3, 0.1, 0.4, 0.2],  # nenhum passa: fica "outro"
+            [0.1, 0.1, 0.1, 0.1, 0.7, 0.1, 0.1, 0.9],  # "sem reclamação" com outro: sai
+            [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.9],  # só "sem reclamação"
+            [0.5, 0.5, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],  # exatamente no limiar: os dois entram
+        ]
+    )
+
+    class Output:
+        def __init__(self, logits):
+            self.logits = logits
+
+    class FixedModel:
+        config = real_model.config
+
+        def __init__(self, probabilities):
+            p = torch.from_numpy(np.asarray(probabilities, dtype=np.float64)).unsqueeze(0)
+            self.logits = torch.log(p) - torch.log1p(-p)  # sigmoide inversa
+
+        def __call__(self, **kwargs):
+            return Output(self.logits)
+
+    expected = bert.apply_rules(cases)
+    for row, want in zip(cases, expected, strict=True):
+        namespace["model"] = FixedModel(row)
+        got, _ = tipos_de_problema("veio quebrado")
+        assert got == [label for label, flag in zip(LABELS, want, strict=True) if flag], row

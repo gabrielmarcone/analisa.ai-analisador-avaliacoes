@@ -56,9 +56,13 @@ publica os modelos no Hugging Face Hub e devolve os resultados para versionar aq
 python -m reviews.bert sentimento --teste
 python -m reviews.bert problemas --teste
 python -m reviews.bert publicar --usuario SEU_USUARIO_HF   # token na variável HF_TOKEN
+python -m reviews.bert cards --usuario SEU_USUARIO_HF --simular   # mostra os model cards
+python -m reviews.bert cards --usuario SEU_USUARIO_HF   # atualiza só os model cards
 ```
 
 A validação escolhe a melhor época (parada antecipada); o teste é medido uma vez.
+Os model cards saem de `reports/resultados.json`, com as regras de previsão do projeto e a
+comparação com o LLM; `cards` reenvia só o `README.md` de cada modelo, sem os pesos.
 
 ### LLM zero-shot (Fase 5)
 

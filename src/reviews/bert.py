@@ -12,6 +12,7 @@ Uso:
     python -m reviews.bert sentimento --teste
     python -m reviews.bert problemas --teste
     python -m reviews.bert publicar --usuario SEU_USUARIO_HF
+    python -m reviews.bert cards --usuario SEU_USUARIO_HF [--simular]
 
 PyTorch e Transformers são importados só dentro das funções que treinam ou
 predizem. Assim o restante do projeto (e seus testes) roda sem eles.
@@ -51,7 +52,7 @@ from reviews.evaluate import (
     timed,
 )
 from reviews.labels import BINARY_SENTIMENTS
-from reviews.paths import MODELS_DIR, REPORTS_DIR
+from reviews.paths import MODELS_DIR, PROJECT_ROOT, REPORTS_DIR
 from reviews.splits import TEST, TRAIN, VAL
 
 BASE_MODEL = "neuralmind/bert-base-portuguese-cased"
@@ -62,6 +63,9 @@ MAX_LENGTH = 128  # EDA: percentil 99 = 38 palavras, máximo 48 (≈ 70 tokens)
 CPU_LATENCY_SAMPLE = 200
 DATA_LICENSE = "cc-by-nc-sa-4.0"
 DATASET_URL = "https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce"
+PROJECT_URL = "https://github.com/gabrielmarcone/analisa.ai-analisador-avaliacoes"
+LLM_KEY = "llm_zero_shot"
+ENV_FILE = PROJECT_ROOT / ".env"  # o mesmo .env do LLM; fica fora do Git
 
 
 @dataclass(frozen=True)
@@ -412,14 +416,50 @@ def repo_id(user: str, task: str) -> str:
     return f"{user}/bertimbau-olist-{task}"
 
 
+def _hyperparameters(entry: dict) -> str:
+    params = entry.get("hiperparametros") or {}
+    keys = ("learning_rate", "batch_size", "epocas_max", "melhor_epoca")
+    if not all(key in params for key in keys):
+        return ""
+    rate = f"{params['learning_rate']:.0e}".replace("e-0", "e-")
+    return (
+        f"- Taxa de aprendizado {rate}, lote de {params['batch_size']}, até "
+        f"{params['epocas_max']} épocas; a validação escolheu a época {params['melhor_epoca']}.\n"
+    )
+
+
+def _comparison(test: dict) -> str:
+    """Parágrafo factual: LLM sem treino e latência deste modelo, se estiverem registrados."""
+    ours, llm = test.get(MODEL_KEY, {}), test.get(LLM_KEY, {})
+    sentences = []
+    if "f1_macro" in ours and "f1_macro" in llm:
+        sentences.append(
+            f"No mesmo teste, o {llm.get('modelo', 'LLM')}, sem treino e sem exemplos (só com "
+            f"instruções escritas), chega a F1 macro {fmt_br(llm['f1_macro'])}; "
+            f"este modelo, a {fmt_br(ours['f1_macro'])}."
+        )
+    if "latencia_ms_por_avaliacao" in ours:
+        where = ours.get("latencia_medida_em", "CPU")
+        sentences.append(
+            f"Este modelo roda sem custo por avaliação e sem chave de API, em cerca de "
+            f"{ours['latencia_ms_por_avaliacao']:.0f} ms por avaliação (medido em {where})."
+        )
+    if not sentences:
+        return ""
+    sentences.append(f"A análise completa está no [README do projeto]({PROJECT_URL}#resultados).")
+    return " ".join(sentences) + "\n\n"
+
+
 def model_card(task: str, results: dict, repo: str) -> str:
     """Model card (README.md do repositório no Hub) a partir dos resultados registrados."""
     by_split = results.get(task, {})
+    names = {MODEL_KEY: MODEL_NAME, "baseline_tfidf": "Baseline TF-IDF"}
     rows = []
     for split_name in (VAL, TEST):
         entry = by_split.get(split_name, {})
-        for key, name in ((MODEL_KEY, MODEL_NAME), ("baseline_tfidf", "Baseline TF-IDF")):
+        for key in (MODEL_KEY, "baseline_tfidf", LLM_KEY):
             if key in entry:
+                name = names.get(key) or entry[key].get("modelo", key)
                 f1, n = fmt_br(entry[key]["f1_macro"]), entry[key]["n"]
                 rows.append(f"| {name} | {split_name} | {f1} | {n} |")
     metrics_table = (
@@ -430,59 +470,130 @@ def model_card(task: str, results: dict, repo: str) -> str:
 
     test_entry = by_split.get(TEST, {}).get(MODEL_KEY) or by_split.get(VAL, {}).get(MODEL_KEY, {})
     per_class = test_entry.get("por_classe", {})
-    class_rows = [
-        f"| {CATEGORIES.get(label, label)} | {fmt_br(v['f1'])} | {v['suporte']} |"
-        for label, v in per_class.items()
-    ]
-    class_table = "\n".join(["| Classe | F1 | Suporte |", "|---|---:|---:|", *class_rows])
+    if task == TASK_PROBLEMS:  # o rótulo que o modelo devolve e o nome da categoria
+        header = ["| Classe | Rótulo | F1 | Suporte |", "|---|---|---:|---:|"]
+        class_rows = [
+            f"| {CATEGORIES[label]} | `{label}` | {fmt_br(v['f1'])} | {v['suporte']} |"
+            for label, v in per_class.items()
+        ]
+    else:
+        header = ["| Rótulo | F1 | Suporte |", "|---|---:|---:|"]
+        class_rows = [
+            f"| `{label}` | {fmt_br(v['f1'])} | {v['suporte']} |" for label, v in per_class.items()
+        ]
+    class_table = "\n".join([*header, *class_rows])
+    comparison = _comparison(by_split.get(TEST, {}))
+    hyperparameters = _hyperparameters(test_entry)
+    sentiment_repo = repo.rsplit("-", 1)[0] + f"-{TASK_SENTIMENT}"
 
     if task == TASK_SENTIMENT:
         description = (
             "Classifica avaliações de e-commerce em **negativa** ou **positiva**. "
             "O rótulo vem da nota do cliente (1–2 negativa, 4–5 positiva; a nota 3 fica fora)."
         )
-        usage = (
-            'pred = classifier("Chegou antes do prazo, recomendo!")\n'
-            "# [{'label': 'positiva', 'score': ...}]"
+        extra_tag = ""
+        usage = f"""```python
+from transformers import pipeline
+
+classifier = pipeline("text-classification", model="{repo}")
+classifier(
+    "Ótimo. Chegou antes do prazo e a qualidade é excelente. Recomendo!",
+    truncation=True,
+    max_length={MAX_LENGTH},
+)
+# [{{'label': 'positiva', 'score': 0.998}}]
+```"""
+        data = (
+            "- 29.689 avaliações de treino (8.606 negativas, 21.083 positivas); "
+            "validação e teste com 3.712 cada.\n"
         )
-        pipeline_kwargs = ""
-        caveat = ""
+        caveats = (
+            "- Só duas classes: a nota 3 ficou fora do treino, então um texto neutro ou misto "
+            "cai num dos dois lados.\n"
+            "- O rótulo vem das estrelas, não do texto: quem reclama mas dá nota 4 ou 5 conta "
+            "como positiva, e o modelo aprendeu esse padrão.\n"
+        )
     else:
         description = (
             "Identifica, numa avaliação **negativa**, os tipos de problema relatados "
             "(multirrótulo, 8 categorias): "
             + ", ".join(CATEGORIES.values())
-            + ". Os rótulos foram anotados à mão seguindo um guia publicado "
-            "no repositório do projeto."
+            + ". Os rótulos foram anotados à mão seguindo o "
+            f"[guia de anotação]({PROJECT_URL}/blob/main/docs/guia_anotacao.md) do projeto."
         )
-        usage = (
-            'pred = classifier("Atrasou e ainda veio quebrado")\n'
-            "# considere as categorias com score ≥ 0,5"
+        extra_tag = "- multi-label-classification\n"
+        usage = f"""\
+O modelo devolve uma probabilidade por categoria (sigmoide). O projeto aplica três
+regras, as mesmas usadas para medir os resultados acima:
+
+1. entra toda categoria com probabilidade ≥ 0,5;
+2. se nenhuma passa, entra a mais provável (toda avaliação negativa tem ao menos um tipo);
+3. "sem reclamação" nunca acompanha outro tipo.
+
+```python
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+repo = "{repo}"
+tokenizer = AutoTokenizer.from_pretrained(repo)
+model = AutoModelForSequenceClassification.from_pretrained(repo).eval()
+
+
+def tipos_de_problema(texto, limiar=0.5):
+    entrada = tokenizer(texto, truncation=True, max_length={MAX_LENGTH}, return_tensors="pt")
+    with torch.no_grad():
+        probs = torch.sigmoid(model(**entrada).logits)[0].tolist()
+    prob = {{model.config.id2label[i]: p for i, p in enumerate(probs)}}
+    tipos = [rotulo for rotulo, p in prob.items() if p >= limiar]
+    if not tipos:  # nenhum passou do limiar: fica o mais provável
+        tipos = [max(prob, key=prob.get)]
+    if "sem_reclamacao" in tipos and len(tipos) > 1:  # nunca acompanha outro tipo
+        tipos.remove("sem_reclamacao")
+    return tipos, prob
+
+
+tipos_de_problema("Veio quebrado. A tampa veio rachada e o aparelho não liga. Quero devolver.")[0]
+# ['defeito_qualidade', 'atendimento']
+tipos_de_problema("ruim")[0]
+# ['outro']  (nenhuma passou de 0,5; "outro" foi a mais provável, com 0,30)
+```"""
+        data = (
+            "- 750 avaliações negativas de treino, 250 de validação e 500 de teste, "
+            "todas anotadas à mão.\n"
         )
-        pipeline_kwargs = ', top_k=None, function_to_apply="sigmoid"'
-        caveat = (
-            "- Treinado com 750 avaliações anotadas por **uma única pessoa** "
-            "(concordância intra-anotador: kappa ≥ 0,87 em todas as categorias).\n"
-            '- "Outro problema" e "Sem reclamação" têm poucos exemplos '
-            "e são as classes mais fracas.\n"
+        caveats = (
+            f"- Feito para avaliações negativas (só viu essas no treino). No projeto, ele só roda "
+            f"quando o [modelo de sentimento](https://huggingface.co/{sentiment_repo}) "
+            "diz negativa.\n"
+            "- Anotado por **uma única pessoa** (concordância intra-anotador: kappa ≥ 0,87 "
+            "em todas as categorias).\n"
+            '- "Sem reclamação no texto" teve só 14 exemplos no treino e o modelo não a prevê '
+            '(F1 0 no teste). Entre os tipos de problema, "Outro problema" é o mais fraco.\n'
         )
 
     return f"""---
 language: pt
 license: {DATA_LICENSE}
 base_model: {BASE_MODEL}
+library_name: transformers
 pipeline_tag: text-classification
+metrics:
+- f1
 tags:
 - bertimbau
 - portuguese
 - e-commerce
 - reviews
 - olist
----
+{extra_tag}---
 
 # BERTimbau · avaliações Olist · {task}
 
 {description}
+
+Faz parte do [analisa.ai]({PROJECT_URL}), projeto que compara TF-IDF, BERTimbau e um LLM
+na classificação de avaliações de e-commerce e gera relatórios para vendedores. O código
+de treino, os rótulos anotados e uma demo para rodar no computador estão lá.
 
 Modelo ajustado a partir de [{BASE_MODEL}](https://huggingface.co/{BASE_MODEL}) com a
 [base pública da Olist]({DATASET_URL}) (avaliações reais de clientes, 2016–2018).
@@ -490,32 +601,32 @@ Modelo ajustado a partir de [{BASE_MODEL}](https://huggingface.co/{BASE_MODEL}) 
 ## Resultados
 
 Mesma divisão treino/validação/teste do projeto (agrupada por texto, para que avaliações
-idênticas não caiam em conjuntos diferentes). O teste foi medido uma única vez.
+idênticas não caiam em conjuntos diferentes). O teste foi medido uma única vez por modelo.
 
 {metrics_table}
 
-Por classe (teste):
+{comparison}Por classe (teste, este modelo):
 
 {class_table}
 
 ## Como usar
 
-```python
-from transformers import pipeline
-
-classifier = pipeline("text-classification", model="{repo}"{pipeline_kwargs})
 {usage}
-```
+
+O texto de entrada junta título e comentário como no treino: `Título. Comentário` (sem o
+ponto extra quando o título já termina em `.`, `!`, `?` ou `…`), com espaços repetidos
+reduzidos a um.
 
 ## Treino
 
-- Texto: título + comentário, até {MAX_LENGTH} tokens.
-- Parada antecipada pela F1 macro na validação; hiperparâmetros fixados antes de ver o teste.
+{data}- Texto: título + comentário, até {MAX_LENGTH} tokens.
+{hyperparameters}- Parada antecipada pela F1 macro na validação; hiperparâmetros fixados antes
+  de ver o teste.
 
 ## Limitações
 
 - Domínio: marketplace brasileiro, 2016–2018. Gírias e produtos novos podem degradar o desempenho.
-{caveat}- Os nomes de loja da base são pseudônimos criados pela Olist.
+{caveats}- Os nomes de loja da base são pseudônimos criados pela Olist.
 
 ## Licença
 
@@ -525,19 +636,30 @@ pela mesma licença.
 """
 
 
-def publish(
-    user: str, tasks: Sequence[str] = (TASK_SENTIMENT, TASK_PROBLEMS), private: bool = False
-) -> list[str]:
-    """Envia os modelos treinados ao Hub. O token vem da variável HF_TOKEN e nunca é impresso."""
-    from huggingface_hub import HfApi
-
-    token = os.environ.get("HF_TOKEN")
+def _hf_token() -> str:
+    """Token do Hugging Face: variável HF_TOKEN ou arquivo .env. Nunca é impresso."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:  # no Colab o token vem do painel Secrets
+        pass
+    else:
+        load_dotenv(ENV_FILE)
+    token = os.environ.get("HF_TOKEN", "").strip()
     if not token:
         raise SystemExit(
             "Defina o token de escrita do Hugging Face na variável HF_TOKEN "
-            "(no Colab: Secrets → HF_TOKEN)."
+            "(no .env da raiz do projeto ou, no Colab, em Secrets → HF_TOKEN)."
         )
-    api = HfApi(token=token)
+    return token
+
+
+def publish(
+    user: str, tasks: Sequence[str] = (TASK_SENTIMENT, TASK_PROBLEMS), private: bool = False
+) -> list[str]:
+    """Envia os modelos treinados e o model card ao Hub."""
+    from huggingface_hub import HfApi
+
+    api = HfApi(token=_hf_token())
     results = load_results()
     urls = []
     for task in tasks:
@@ -561,6 +683,39 @@ def publish(
     return urls
 
 
+def update_cards(
+    user: str, tasks: Sequence[str] = (TASK_SENTIMENT, TASK_PROBLEMS), dry_run: bool = False
+) -> list[str]:
+    """Atualiza só o README.md (model card) de repositórios que já existem no Hub.
+
+    Os pesos não são reenviados. Com ``dry_run``, só imprime os cards, sem token.
+    """
+    results = load_results()
+    cards = {task: model_card(task, results, repo_id(user, task)) for task in tasks}
+    if dry_run:
+        for task, card in cards.items():
+            print(f"===== {repo_id(user, task)} · README.md =====\n{card}")
+        return []
+
+    from huggingface_hub import HfApi
+
+    api = HfApi(token=_hf_token())
+    urls = []
+    for task, card in cards.items():
+        repo = repo_id(user, task)
+        api.upload_file(
+            path_or_fileobj=card.encode("utf-8"),
+            path_in_repo="README.md",
+            repo_id=repo,
+            repo_type="model",
+            commit_message="Atualiza o model card",
+        )
+        url = f"https://huggingface.co/{repo}"
+        urls.append(url)
+        print(f"Model card atualizado: {url}")
+    return urls
+
+
 # ---------------------------------------------------------------------------
 # Linha de comando
 # ---------------------------------------------------------------------------
@@ -575,10 +730,15 @@ def main(argv: list[str] | None = None) -> None:
     pub = sub.add_parser("publicar", help="envia os modelos ao Hugging Face Hub")
     pub.add_argument("--usuario", required=True, help="seu nome de usuário no Hugging Face")
     pub.add_argument("--privado", action="store_true", help="cria os repositórios como privados")
+    cards = sub.add_parser("cards", help="atualiza só os model cards no Hugging Face Hub")
+    cards.add_argument("--usuario", required=True, help="seu nome de usuário no Hugging Face")
+    cards.add_argument("--simular", action="store_true", help="só mostra os cards, sem enviar")
     args = parser.parse_args(argv)
 
     if args.comando == "publicar":
         publish(args.usuario, private=args.privado)
+    elif args.comando == "cards":
+        update_cards(args.usuario, dry_run=args.simular)
     else:
         run_task(args.comando, include_test=args.teste)
 
