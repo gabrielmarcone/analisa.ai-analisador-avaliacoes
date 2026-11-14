@@ -1,0 +1,16 @@
+# Mantém as ações do GitHub (fixadas pelo commit em .github/workflows/ci.yml) atualizadas.
+# As bibliotecas Python não entram aqui: o requirements.txt usa versões mínimas, e a
+# auditoria semanal da CI avisa se alguma dependência tiver vulnerabilidade conhecida.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # Espera uma semana antes de propor uma versão nova: dá tempo de uma versão
+    # comprometida ser descoberta e retirada antes de chegar aqui.
+    cooldown:
+      default-days: 7
+    groups:
+      acoes-do-github:
+        patterns: ["*"]
