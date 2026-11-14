@@ -1,8 +1,11 @@
 import json
 
+import numpy as np
 import pytest
+from sklearn.metrics import f1_score
 
 from reviews.evaluate import (
+    bootstrap_f1_macro,
     comparison_markdown,
     evaluate_classification,
     evaluate_multilabel,
@@ -39,6 +42,22 @@ def test_multirrotulo_com_valores_conhecidos():
     assert result["conjunto_identico"] == pytest.approx(2 / 3)
     assert result["jaccard_medio"] == pytest.approx((1 + 0.5 + 1) / 3)
     assert result["por_classe"]["y"]["revocacao"] == pytest.approx(0.5)
+
+
+def test_intervalo_por_bootstrap_e_reprodutivel_e_bate_com_o_sklearn():
+    rng = np.random.default_rng(0)
+    truth = rng.random((300, 4)) < 0.3
+    predicted = truth ^ (rng.random((300, 4)) < 0.15)  # 15% de erros
+    low, high = bootstrap_f1_macro(truth, predicted)
+    point = f1_score(truth, predicted, average="macro", zero_division=0)
+    assert low < point < high and high - low < 0.2
+    assert bootstrap_f1_macro(truth, predicted) == [low, high]  # semente fixa
+    perfect = bootstrap_f1_macro(truth, truth, samples=50)
+    assert perfect == [1.0, 1.0]
+    # As duas funções de avaliação guardam o intervalo junto com o F1.
+    assert len(evaluate_multilabel(truth, predicted, list("abcd"))["f1_macro_ic95"]) == 2
+    single = evaluate_classification(["a", "b"] * 20, ["a", "a"] * 20, ["a", "b"])
+    assert single["f1_macro_ic95"][0] <= single["f1_macro"] <= single["f1_macro_ic95"][1]
 
 
 def test_multirrotulo_rejeita_formas_erradas():
