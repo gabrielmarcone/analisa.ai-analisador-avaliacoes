@@ -1,5 +1,7 @@
 # Analisador de Avaliações com IA
 
+[![CI](https://github.com/gabrielmarcone/analisa.ai-analisador-avaliacoes/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielmarcone/analisa.ai-analisador-avaliacoes/actions/workflows/ci.yml)
+
 Classificação de avaliações de clientes de e-commerce brasileiro (base Olist) com TF-IDF, BERTimbau e LLM, e agente que gera relatórios para vendedores.
 
 🚧 Em construção.
@@ -217,6 +219,23 @@ exemplos (gravadas em [`reports/demo_conferencia.json`](reports/demo_conferencia
 - **Sem site público:** desde 2026 o Hugging Face cobra para hospedar Spaces em Gradio
   (só os Spaces estáticos continuam gratuitos), e o projeto não usa serviço pago.
 
+### Integração contínua (Fase 7)
+
+A cada push na `main`, a cada PR e toda segunda-feira, o GitHub Actions
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) roda:
+
+- **Qualidade:** os hooks do pre-commit em todos os arquivos (ruff, formatação, notebooks
+  sem saída, chaves privadas, arquivos grandes).
+- **Testes sem PyTorch:** em Python 3.12 e 3.13, e com o pandas mínimo declarado (2.2).
+- **Testes com PyTorch de CPU:** todos os testes, inclusive o treino e a demo com BERTs
+  minúsculos; a CI falha se algum teste for pulado.
+- **Auditoria:** o `pip-audit` procura vulnerabilidades conhecidas nas dependências; a
+  execução semanal pega falhas novas mesmo sem mudança no código.
+
+Nenhum segredo é usado: os testes não acessam a rede, APIs pagas nem o Hugging Face. As
+ações ficam fixadas pelo commit, com permissão só de leitura, e o Dependabot propõe as
+atualizações uma vez por mês, esperando uma semana por versões recém-lançadas.
+
 ### Resultados
 
 Os números ficam em [`reports/resultados.md`](reports/resultados.md), acumulados por
@@ -320,6 +339,7 @@ O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados
 | Negativa que o classificador não classifica fica fora das porcentagens do relatório | Contá-la como "outro problema" inflaria essa categoria sem ninguém ver. |
 | Demo só com os BERTimbau, em CPU | Roda em qualquer computador, sem custo por avaliação e sem chave de API. |
 | Demo confere os modelos do Hub no teste | Garante que o que a demo mostra é o que foi medido (mesmos modelos, mesmo código de previsão). |
+| CI sem segredos, com ações fixadas pelo commit e auditoria semanal | Os testes rodam sem rede; fixar pelo commit impede que uma ação alterada depois rode no projeto. |
 | Demo sem site público, mostrada em prints e vídeo | Hospedar Gradio no Hugging Face passou a ser pago; um site estático exigiria reescrever a leitura em JavaScript. |
 | Leitura da demo com veredito em frase, limite de 50% desenhado e aviso de confiança baixa | Quem usa precisa da resposta antes dos gráficos, e a regra da avaliação fica visível em vez de escondida num texto. |
 
