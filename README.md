@@ -165,6 +165,47 @@ virou uma correção no código (comparações prontas, conferências automátic
 pelo mesmo classificador, a base certa para cada número e regras no prompt), e não uma
 edição manual do texto.
 
+### Demo (Fase 7)
+
+Uma demo em Gradio no Hugging Face Spaces
+([`gmarconems/analisa-ai`](https://huggingface.co/spaces/gmarconems/analisa-ai)) classifica
+uma avaliação digitada: o **sentimento** e, se for negativa, os **tipos de problema**, com
+as probabilidades. Tem uma tela inicial para o vendedor, os relatórios de vendedores e a
+tabela de resultados. A API `/classificar` devolve a mesma previsão em JSON.
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu   # PyTorch só para CPU
+pip install "transformers==5.22.1"     # a versão que salvou os modelos
+python -m reviews.demo conferir    # mede os modelos publicados no teste (sem API)
+python -m reviews.demo             # abre a demo em http://127.0.0.1:7860
+python -m reviews.demo publicar    # cria ou atualiza o Space (HF_TOKEN no .env)
+```
+
+- **Mesmo caminho da avaliação:** o texto passa pela mesma limpeza da base (título +
+  comentário), pela mesma tokenização e pelas mesmas regras de previsão do teste: tipo
+  com probabilidade de pelo menos 50%; se nenhum chega lá, o mais provável; "sem
+  reclamação" nunca junto de outro tipo.
+- **`conferir`** baixa os modelos do Hub, roda o conjunto de teste com o código da demo e
+  compara o F1 com o registrado em `resultados.json`; o resultado e as previsões dos
+  exemplos ficam em [`reports/demo_conferencia.json`](reports/demo_conferencia.json).
+- **Só BERTimbau na demo:** não há custo por visita nem chave de API no Space; o LLM
+  aparece só na tabela de resultados.
+- **Tipos de problema só em negativas:** o modelo foi treinado só com elas; numa
+  avaliação positiva, a demo diz que não se aplica em vez de mostrar um resultado sem
+  sentido.
+- **Incerteza à vista:** quando nenhum tipo passa de 50%, a leitura mostra o mais provável
+  com um aviso de confiança baixa, e probabilidades acima de 99,5% aparecem como ">99%".
+- **Números tirados dos arquivos:** a tela inicial lê `resultados.json` e as auditorias dos
+  relatórios; a leitura de exemplo é feita pelo modelo na hora. Nada é digitado à mão.
+- **Identidade visual própria** (`demo_ui.py` e `demo.css`): contraste WCAG AA nos temas
+  claro e escuro (conferido com axe-core), navegação por teclado com foco visível, alvos
+  de toque de 44 px e layout para celular. O texto digitado é escapado antes de virar HTML.
+- A demo só faz previsão e não precisa do `accelerate`; para rodar também o teste de
+  treino do BERTimbau, instale `requirements-bert.txt` (sem ele, esse teste é pulado).
+- **`publicar`** monta o Space a partir de uma lista fechada de arquivos (código da demo,
+  relatórios e resultados) em `build/space/`; dados, modelos locais e o `.env` nunca vão.
+  Os textos digitados não são guardados.
+
 ### Resultados
 
 Os números ficam em [`reports/resultados.md`](reports/resultados.md), acumulados por
@@ -266,16 +307,20 @@ O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados
 | Relatório por vendedor só com pedidos de um único vendedor | Num pedido com vários vendedores, a avaliação não diz de quem é a culpa. |
 | Relatórios: nota e negativas sobre todas as avaliações; atraso sobre todos os pedidos entregues | Só 41% das avaliações têm comentário, e quem está insatisfeito escreve mais; medir tudo nas comentadas mostraria vendedores e marketplace piores do que são. |
 | Negativa que o classificador não classifica fica fora das porcentagens do relatório | Contá-la como "outro problema" inflaria essa categoria sem ninguém ver. |
+| Demo só com os BERTimbau, em CPU | Sem custo por visita e sem chave de API num site público; é o hardware gratuito do Spaces. |
+| Demo confere os modelos do Hub no teste antes de publicar | Garante que o que a demo mostra é o que foi medido (mesmos modelos, mesmo código de previsão). |
+| Leitura da demo com veredito em frase, limite de 50% desenhado e aviso de confiança baixa | Quem usa precisa da resposta antes dos gráficos, e a regra da avaliação fica visível em vez de escondida num texto. |
 
 ## Estrutura
 
 ```
-src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM, agente)
+src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM, agente, demo)
 docs/             guia de anotação
 annotations/      fila e rótulos da anotação (só IDs, sem texto)
 notebooks/        análise exploratória (01) e treino do BERTimbau no Colab (02)
 splits/           IDs da divisão treino/validação/teste
 reports/          resultados por modelo (`resultados.md`), figuras e relatórios dos vendedores
 models/           modelos treinados (fora do Git)
+build/            pasta montada para publicar o Space (fora do Git)
 tests/            testes automatizados
 ```
