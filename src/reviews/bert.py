@@ -446,7 +446,8 @@ def _comparison(test: dict) -> str:
         )
     if not sentences:
         return ""
-    sentences.append(f"A análise completa está no [README do projeto]({PROJECT_URL}#resultados).")
+    analysis = f"{PROJECT_URL}/blob/main/docs/metodologia.md#resultados-em-detalhe"
+    sentences.append(f"A análise completa está na [metodologia do projeto]({analysis}).")
     return " ".join(sentences) + "\n\n"
 
 

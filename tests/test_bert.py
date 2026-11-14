@@ -103,6 +103,7 @@ def test_model_card_com_resultados(tmp_path):
     card = bert.model_card("problemas", load_results(path), "gabriel/bertimbau-olist-problemas")
     assert "| Claude Haiku 5.5 (zero-shot) | teste | 0,880 | 500 |" in card
     assert "chega a F1 macro 0,880; este modelo, a 0,740." in card
+    assert "docs/metodologia.md#resultados-em-detalhe" in card
 
 
 def test_model_cards_com_os_resultados_do_projeto():
