@@ -16,6 +16,9 @@ reviews-annotate = "reviews.annotate_app:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+reviews = ["*.css"]  # estilo da demo (demo.css)
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

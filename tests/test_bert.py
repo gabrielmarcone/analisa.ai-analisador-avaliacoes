@@ -1,8 +1,8 @@
 """Testes do módulo do BERTimbau.
 
 As funções puras rodam em qualquer ambiente. O teste de ponta a ponta treina um
-BERT minúsculo criado aqui mesmo (sem baixar nada) e só roda se PyTorch e
-Transformers estiverem instalados; no ambiente local do projeto ele é pulado.
+BERT minúsculo criado aqui mesmo (sem baixar nada) e só roda se PyTorch, Transformers e
+Accelerate estiverem instalados (``requirements-bert.txt``); sem eles, é pulado.
 """
 
 from functools import partial
@@ -167,6 +167,9 @@ def _frame(task):
 
 @pytest.mark.parametrize("task", [TASK_SENTIMENT, TASK_PROBLEMS])
 def test_ponta_a_ponta_com_bert_minusculo(task, tiny_bert, tmp_path, monkeypatch):
+    # O Trainer do Transformers exige o accelerate (requirements-bert.txt). A demo só
+    # faz previsão e não precisa dele, então sem ele este teste é pulado, não quebra.
+    pytest.importorskip("accelerate")
     results_path = tmp_path / "resultados.json"
     monkeypatch.setattr(bert, "MODELS_DIR", tmp_path / "models")
     monkeypatch.setattr(bert, "REPORTS_DIR", tmp_path / "reports")

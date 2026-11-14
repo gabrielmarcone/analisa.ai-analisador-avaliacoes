@@ -1,0 +1,160 @@
+{
+  "verificado_em": "2026-11-14T17:45:56+00:00",
+  "tarefas": {
+    "sentimento": {
+      "avaliacoes": 3712,
+      "f1_macro_registrado": 0.9469964066316543,
+      "f1_macro_demo": 0.9469964066316543,
+      "diferenca": 0.0,
+      "f1_por_classe_demo": {
+        "negativa": 0.9247211895910781,
+        "positiva": 0.9692716236722306
+      },
+      "confere": true
+    },
+    "problemas": {
+      "avaliacoes": 500,
+      "f1_macro_registrado": 0.6963761494561282,
+      "f1_macro_demo": 0.6963761494561282,
+      "diferenca": 0.0,
+      "f1_por_classe_demo": {
+        "atraso": 0.8942307692307693,
+        "nao_recebido": 0.8806366047745358,
+        "incompleto": 0.8571428571428571,
+        "produto_diferente": 0.8131868131868132,
+        "defeito_qualidade": 0.8070175438596491,
+        "atendimento": 0.8316151202749141,
+        "outro": 0.48717948717948717,
+        "sem_reclamacao": 0.0
+      },
+      "confere": true
+    }
+  },
+  "exemplos": [
+    {
+      "exemplo": "Elogio",
+      "texto": "Ótimo. Chegou antes do prazo e a qualidade é excelente. Recomendo!",
+      "sentimento": "positiva",
+      "prob_sentimento": {
+        "negativa": 0.002283048607099507,
+        "positiva": 0.9977169513929004
+      },
+      "problemas": null,
+      "prob_problemas": null
+    },
+    {
+      "exemplo": "Não chegou",
+      "texto": "Comprei há um mês e até hoje não recebi. Ninguém responde meus e-mails.",
+      "sentimento": "negativa",
+      "prob_sentimento": {
+        "negativa": 0.9905427008105454,
+        "positiva": 0.009457299189454666
+      },
+      "problemas": [
+        "atraso",
+        "nao_recebido",
+        "atendimento"
+      ],
+      "prob_problemas": {
+        "atraso": 0.8401823822967058,
+        "nao_recebido": 0.9752382185734572,
+        "incompleto": 0.026143960954342686,
+        "produto_diferente": 0.02747507976089109,
+        "defeito_qualidade": 0.030847429643956883,
+        "atendimento": 0.6801158062898373,
+        "outro": 0.019971623964788337,
+        "sem_reclamacao": 0.04198998473385199
+      }
+    },
+    {
+      "exemplo": "Veio quebrado",
+      "texto": "Veio quebrado. A tampa veio rachada e o aparelho não liga. Quero devolver.",
+      "sentimento": "negativa",
+      "prob_sentimento": {
+        "negativa": 0.9686813819069686,
+        "positiva": 0.03131861809303141
+      },
+      "problemas": [
+        "defeito_qualidade",
+        "atendimento"
+      ],
+      "prob_problemas": {
+        "atraso": 0.04759061692124423,
+        "nao_recebido": 0.0537877749481369,
+        "incompleto": 0.06871282944759242,
+        "produto_diferente": 0.11328314650194722,
+        "defeito_qualidade": 0.8852639437258883,
+        "atendimento": 0.9184285313708513,
+        "outro": 0.0498582467781652,
+        "sem_reclamacao": 0.04307426624358166
+      }
+    },
+    {
+      "exemplo": "Faltou item",
+      "texto": "Pedi duas cadeiras e só chegou uma.",
+      "sentimento": "negativa",
+      "prob_sentimento": {
+        "negativa": 0.9829292721632722,
+        "positiva": 0.017070727836727962
+      },
+      "problemas": [
+        "incompleto"
+      ],
+      "prob_problemas": {
+        "atraso": 0.02548054212307993,
+        "nao_recebido": 0.04145158565862276,
+        "incompleto": 0.915650544990434,
+        "produto_diferente": 0.04312082273396411,
+        "defeito_qualidade": 0.040523298016934016,
+        "atendimento": 0.05714909595233346,
+        "outro": 0.049968664161572314,
+        "sem_reclamacao": 0.02833728452434946
+      }
+    },
+    {
+      "exemplo": "Diferente do anúncio",
+      "texto": "Diferente do anúncio. A cor é outra e o tamanho é menor do que o da foto.",
+      "sentimento": "negativa",
+      "prob_sentimento": {
+        "negativa": 0.8555294897140007,
+        "positiva": 0.14447051028599928
+      },
+      "problemas": [
+        "produto_diferente"
+      ],
+      "prob_problemas": {
+        "atraso": 0.041769214209750806,
+        "nao_recebido": 0.03474852119020524,
+        "incompleto": 0.045620415381667154,
+        "produto_diferente": 0.9380423659217267,
+        "defeito_qualidade": 0.1144908012963805,
+        "atendimento": 0.0735207826897157,
+        "outro": 0.03722215730396639,
+        "sem_reclamacao": 0.03203543482749722
+      }
+    },
+    {
+      "exemplo": "Só “ruim”",
+      "texto": "ruim",
+      "sentimento": "negativa",
+      "prob_sentimento": {
+        "negativa": 0.9386243454949318,
+        "positiva": 0.06137565450506817
+      },
+      "problemas": [
+        "outro"
+      ],
+      "prob_problemas": {
+        "atraso": 0.05733044027065475,
+        "nao_recebido": 0.03326053033677812,
+        "incompleto": 0.04602139224790578,
+        "produto_diferente": 0.05579525048740983,
+        "defeito_qualidade": 0.2530287488865365,
+        "atendimento": 0.02489273197747095,
+        "outro": 0.2953103881495472,
+        "sem_reclamacao": 0.08551847325795282
+      }
+    }
+  ],
+  "confere": true
+}

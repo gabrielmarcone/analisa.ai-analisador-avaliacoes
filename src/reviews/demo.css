@@ -1,0 +1,898 @@
+/* analisa.ai · identidade "Laboratório".
+   Cinzas frios, um único destaque (cobalto), cantos de 2 px, linhas de 1 px no lugar de
+   sombras, números em fonte mono. Texto com contraste de pelo menos 4,5:1 nos dois temas;
+   barras com pelo menos 3:1 sobre a superfície. */
+
+:root {
+  --lab-fundo: #F3F5F6;
+  --lab-sup: #FFFFFF;
+  --lab-tinta: #0F1419;
+  --lab-tinta2: #44505C;
+  --lab-tinta3: #5F6B77;
+  --lab-linha: #D3D9DE;
+  --lab-grade: #E7EBEE;
+  --lab-fraca: #8A949E;
+  --lab-dest: #2D46D6;
+  --lab-sobre-dest: #FFFFFF;
+  --lab-f-tit: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --lab-f-txt: "Atkinson Hyperlegible Next", "Segoe UI", Arial, sans-serif;
+  --lab-f-num: "Atkinson Hyperlegible Mono", ui-monospace, Consolas, monospace;
+}
+
+.dark {
+  --lab-fundo: #0C1014;
+  --lab-sup: #141A20;
+  --lab-tinta: #E6EAEE;
+  --lab-tinta2: #A9B4BE;
+  --lab-tinta3: #8C98A4;
+  --lab-linha: #2A343E;
+  --lab-grade: #1A2128;
+  --lab-fraca: #5E6A76;
+  --lab-dest: #8EA0FF;
+  --lab-sobre-dest: #0C1014;
+}
+
+/* ---------- Página ---------- */
+
+.gradio-container {
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+  padding: 0 clamp(16px, 4vw, 32px) 32px !important;
+  font-family: var(--lab-f-txt) !important;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--lab-tinta);
+  -webkit-font-smoothing: antialiased;
+}
+
+.gradio-container :focus-visible,
+.gradio-container button:focus-visible,
+.gradio-container a:focus-visible,
+.gradio-container summary:focus-visible {
+  outline: 2px solid var(--lab-dest) !important;
+  outline-offset: 3px !important;
+}
+
+.lab-tit {
+  font-family: var(--lab-f-tit);
+  font-stretch: 112%;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  color: var(--lab-tinta);
+  margin: 0;
+}
+
+.lab-rotulo {
+  font-family: var(--lab-f-num);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lab-tinta3);
+  margin: 0;
+}
+
+.lab-num {
+  font-family: var(--lab-f-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-sub {
+  color: var(--lab-tinta2);
+  font-size: 15px;
+}
+
+.lab-nota {
+  margin: 0;
+  font-size: 15px;
+  color: var(--lab-tinta3);
+}
+
+.lab-intro {
+  margin: 0;
+  color: var(--lab-tinta2);
+  max-width: 56ch;
+}
+
+.lab-marca {
+  font-family: var(--lab-f-tit);
+  font-stretch: 112%;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--lab-tinta);
+}
+
+.lab-marca span {
+  font-family: var(--lab-f-num);
+  font-weight: 500;
+  font-stretch: 100%;
+  color: var(--lab-dest);
+}
+
+/* ---------- Cabeçalho e navegação (as abas do Gradio) ---------- */
+
+.lab-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  min-height: 64px;
+}
+
+.lab-nav [role="tablist"] {
+  gap: 4px;
+  height: auto !important;
+  overflow: visible !important;
+  border-bottom: 1px solid var(--lab-linha);
+}
+
+.lab-nav .tab-container > button {
+  font-family: var(--lab-f-txt);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--lab-tinta2);
+  padding: 0 14px;
+  min-height: 52px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  margin-bottom: -1px;
+}
+
+.lab-nav .tab-container > button:hover {
+  color: var(--lab-tinta);
+}
+
+.lab-nav .tab-container > button.selected {
+  color: var(--lab-tinta);
+  border-bottom-color: var(--lab-dest);
+}
+
+.lab-nav .tab-container > button.selected::after {
+  display: none;
+}
+
+/* ---------- Botões ---------- */
+
+.lab-acoes {
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  align-items: center;
+}
+
+.lab-acoes button {
+  white-space: nowrap;
+  min-width: max-content !important;
+  min-height: 52px;
+  padding: 0 24px;
+  font-family: var(--lab-f-txt);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.lab-acoes button.secondary {
+  border-color: var(--lab-tinta);
+}
+
+.lab-form button.primary {
+  min-height: 52px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.lab-exemplos {
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+.lab-exemplos button {
+  min-height: 44px;
+  min-width: max-content !important;
+  padding: 0 16px;
+  font-family: var(--lab-f-txt);
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lab-ex-rotulo {
+  padding-top: 18px;
+  border-top: 1px solid var(--lab-linha);
+}
+
+/* ---------- Leitura ---------- */
+
+.lab-painel,
+.lab-amostra {
+  background: var(--lab-sup);
+  border: 1px solid var(--lab-linha);
+  margin: 0;
+}
+
+.lab-painel-cab {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--lab-linha);
+}
+
+.lab-bloco {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--lab-linha);
+}
+
+.lab-bloco:last-child {
+  border-bottom: 0;
+}
+
+.lab-veredito h2 {
+  font-size: clamp(24px, 2.4vw, 30px) !important;
+  line-height: 1.12;
+}
+
+.lab-veredito p {
+  margin: 8px 0 0;
+  color: var(--lab-tinta2);
+}
+
+.lab-linha-cab {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding-bottom: 10px;
+}
+
+.lab-leitura-num {
+  font-family: var(--lab-f-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.lab-regua {
+  position: relative;
+  height: 30px;
+  border-bottom: 1px solid var(--lab-tinta);
+}
+
+.lab-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 8px;
+  background: var(--lab-tinta3);
+}
+
+.lab-tick.meio {
+  height: 14px;
+}
+
+.lab-marcador {
+  position: absolute;
+  bottom: -5px;
+  width: 4px;
+  height: 30px;
+  margin-left: -2px;
+  background: var(--lab-dest);
+}
+
+.lab-regua-pontas {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 8px;
+  font-family: var(--lab-f-num);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lab-tinta3);
+}
+
+.lab-medida {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(64px, 1fr) 3.8em;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--lab-linha);
+}
+
+.lab-medida-nome {
+  font-weight: 700;
+}
+
+.lab-medida.fraca .lab-medida-nome,
+.lab-medida.fraca .lab-valor {
+  font-weight: 400;
+  color: var(--lab-tinta2);
+}
+
+.lab-trilho {
+  position: relative;
+  height: 10px;
+  background: linear-gradient(var(--lab-linha), var(--lab-linha)) left center / 100% 1px no-repeat;
+}
+
+.lab-barra {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--lab-dest);
+}
+
+.lab-barra.fraca {
+  background: var(--lab-fraca);
+}
+
+.lab-limiar {
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  bottom: -7px;
+  border-left: 1px dashed var(--lab-tinta);
+}
+
+.lab-valor {
+  text-align: right;
+  font-family: var(--lab-f-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.lab-aviso {
+  margin-top: 12px;
+  border: 1px solid var(--lab-tinta);
+  padding: 16px 18px;
+}
+
+.lab-aviso .lab-rotulo {
+  color: var(--lab-tinta);
+}
+
+.lab-aviso p {
+  margin: 6px 0 0;
+}
+
+.lab-detalhes {
+  margin-top: 10px;
+  border-top: 1px solid var(--lab-linha);
+}
+
+.lab-rodape .lab-detalhes {
+  margin-top: 6px;
+}
+
+.lab-detalhes summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--lab-tinta);
+  list-style: none;
+}
+
+.lab-detalhes summary::-webkit-details-marker {
+  display: none;
+}
+
+.lab-detalhes summary::before {
+  content: "+";
+  font-family: var(--lab-f-num);
+  width: 1em;
+  color: var(--lab-dest);
+}
+
+.lab-detalhes[open] summary::before {
+  content: "−";
+}
+
+.lab-detalhes ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  color: var(--lab-tinta2);
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lab-analisado {
+  margin: 0;
+  font-size: 14px;
+  color: var(--lab-tinta3);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Tela inicial ---------- */
+
+.lab-heroi {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: clamp(32px, 6vw, 72px);
+}
+
+.lab-heroi h1 {
+  font-size: clamp(38px, 4.6vw, 60px) !important;
+  line-height: 1.02;
+}
+
+.lab-heroi .lab-intro {
+  font-size: 20px;
+  line-height: 1.5;
+  max-width: 36ch;
+}
+
+.lab-papel {
+  padding: 32px 24px;
+  border-bottom: 1px solid var(--lab-linha);
+  background-color: var(--lab-sup);
+  background-image:
+    linear-gradient(var(--lab-grade) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lab-grade) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+.lab-papel blockquote {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: clamp(22px, 2.2vw, 28px);
+  line-height: 1.2;
+  font-weight: 700;
+  max-width: 24ch;
+}
+
+.lab-amostra-corpo {
+  padding: 20px 24px 8px;
+}
+
+.lab-amostra-tipos {
+  padding-top: 8px;
+}
+
+.lab-amostra figcaption {
+  padding: 14px 24px 18px;
+  font-size: 14px;
+  color: var(--lab-tinta3);
+  border-top: 1px solid var(--lab-linha);
+}
+
+.lab-secao {
+  padding: clamp(56px, 7vw, 96px) 0;
+  border-top: 1px solid var(--lab-linha);
+}
+
+.lab-secao-cab {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 20px 48px;
+  align-items: end;
+  margin-bottom: 40px;
+}
+
+.lab-secao-cab > div {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lab-secao-cab h2 {
+  font-size: clamp(30px, 3.4vw, 44px) !important;
+  line-height: 1.05;
+}
+
+.lab-celulas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  border-top: 1px solid var(--lab-linha);
+  border-left: 1px solid var(--lab-linha);
+}
+
+.lab-celula {
+  padding: 26px 22px 30px;
+  border-right: 1px solid var(--lab-linha);
+  border-bottom: 1px solid var(--lab-linha);
+  background: var(--lab-sup);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lab-celula .lab-num {
+  color: var(--lab-tinta3);
+  font-size: 14px;
+}
+
+.lab-celula h3,
+.lab-passos h3 {
+  margin: 0;
+  font-family: var(--lab-f-tit);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--lab-tinta);
+}
+
+.lab-celula p,
+.lab-passos p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--lab-tinta2);
+}
+
+.lab-passos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 40px;
+}
+
+.lab-passos li {
+  border-top: 2px solid var(--lab-tinta);
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lab-passos p {
+  font-size: 17px;
+  max-width: 34ch;
+}
+
+.lab-passo {
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.lab-tabela {
+  overflow-x: auto;
+  background: var(--lab-sup);
+  border: 1px solid var(--lab-linha);
+}
+
+.lab-tabela table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 16px;
+  margin: 0;
+}
+
+.lab-tabela caption {
+  caption-side: top;
+  text-align: left;
+  padding: 16px 16px 8px;
+  font-family: var(--lab-f-num);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lab-tinta3);
+}
+
+.lab-tabela th {
+  font-family: var(--lab-f-num);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lab-tinta3);
+  text-align: left;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--lab-tinta);
+  background: transparent;
+}
+
+.lab-tabela td {
+  padding: 16px;
+  border: 0;
+  border-bottom: 1px solid var(--lab-linha);
+  background: transparent;
+}
+
+.lab-tabela .n {
+  text-align: right;
+  font-family: var(--lab-f-num);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lab-grandes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 0 32px;
+  border-top: 2px solid var(--lab-tinta);
+}
+
+.lab-medicao-grande {
+  padding: 28px 0 32px;
+  border-bottom: 1px solid var(--lab-linha);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lab-medicao-grande .lab-medicao-num {
+  font-size: clamp(46px, 5vw, 64px);
+  letter-spacing: -0.02em;
+}
+
+.lab-medicao-num {
+  font-family: var(--lab-f-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 40px;
+  line-height: 1.05;
+  color: var(--lab-tinta);
+}
+
+.lab-medicao-num.lab-secundario {
+  color: var(--lab-tinta2);
+}
+
+.lab-medicao-grande .lab-sub {
+  max-width: 34ch;
+}
+
+
+.lab-secao.lab-continua {
+  padding-bottom: 0;
+}
+
+.lab-acoes-secao {
+  padding-bottom: clamp(56px, 7vw, 96px);
+}
+
+.lab-rodape-site {
+  border-top: 1px solid var(--lab-linha);
+  padding: 40px 0 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 28px;
+  font-size: 15px;
+}
+
+.lab-rodape-site p {
+  margin: 10px 0 0;
+  color: var(--lab-tinta2);
+  max-width: 42ch;
+}
+
+.lab-rodape-site ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lab-rodape-site a {
+  color: var(--lab-dest);
+  text-underline-offset: 3px;
+}
+
+/* ---------- Páginas internas ---------- */
+
+.lab-pagina-cab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: clamp(8px, 2vw, 24px) 0 8px;
+}
+
+.lab-pagina-cab h1 {
+  font-size: clamp(30px, 3.6vw, 44px) !important;
+  line-height: 1.05;
+}
+
+/* Markdown dos relatórios e dos resultados, no mesmo desenho */
+.gradio-container .html-container {
+  padding: 0 !important;
+}
+
+.lab-md,
+.lab-md .md,
+.lab-md .prose {
+  font-family: var(--lab-f-txt) !important;
+  font-size: 17px !important;
+  line-height: 1.6 !important;
+  color: var(--lab-tinta);
+}
+
+.lab-md p,
+.lab-md ul,
+.lab-md ol {
+  max-width: 72ch;
+}
+
+.lab-md li {
+  margin: 4px 0;
+}
+
+.lab-md h2,
+.lab-md h3 {
+  font-family: var(--lab-f-tit) !important;
+  font-weight: 700 !important;
+  font-size: 24px !important;
+  line-height: 1.2 !important;
+  margin: 44px 0 14px !important;
+  padding-top: 28px !important;
+  border-top: 1px solid var(--lab-linha) !important;
+  color: var(--lab-tinta) !important;
+}
+
+.lab-relatorio-cab h2 {
+  border-top: 0 !important;
+  padding-top: 0 !important;
+  margin: 20px 0 8px !important;
+  font-size: clamp(24px, 2.6vw, 30px) !important;
+}
+
+.lab-md code {
+  font-family: var(--lab-f-num);
+  font-size: 0.9em;
+  background: transparent;
+  border: 1px solid var(--lab-linha);
+  border-radius: 2px;
+  padding: 1px 5px;
+}
+
+.lab-md table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 16px !important;
+  background: var(--lab-sup);
+  border: 1px solid var(--lab-linha) !important;
+  margin: 16px 0;
+}
+
+.lab-md thead,
+.lab-md tbody,
+.lab-md tr {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.lab-md th {
+  font-family: var(--lab-f-num) !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lab-tinta3) !important;
+  padding: 12px 14px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--lab-tinta) !important;
+  background: transparent !important;
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.lab-md td {
+  padding: 12px 14px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--lab-linha) !important;
+  background: transparent !important;
+}
+
+/* números: todas as colunas depois da primeira, em mono e à direita */
+.lab-md td:not(:first-child),
+.lab-md th:not(:first-child) {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lab-md td:not(:first-child) {
+  font-family: var(--lab-f-num) !important;
+}
+
+.lab-md tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+/* Números principais do relatório */
+.lab-medicoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  border-top: 2px solid var(--lab-tinta);
+  border-left: 1px solid var(--lab-linha);
+  background: var(--lab-sup);
+  margin: 20px 0 12px;
+}
+
+.lab-medicao {
+  padding: 20px 20px 22px;
+  border-right: 1px solid var(--lab-linha);
+  border-bottom: 1px solid var(--lab-linha);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- Telas estreitas ---------- */
+
+.lab-nav [role="tablist"] {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .lab-md table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .lab-nav .tab-container {
+    gap: 0 !important;
+  }
+
+  .lab-nav .tab-container > button {
+    padding: 0 6px;
+    font-size: 15px;
+    min-height: 48px;
+  }
+
+  .lab-cab .lab-rotulo {
+    display: none;
+  }
+
+  .lab-medida {
+    grid-template-columns: minmax(0, 1fr) 3.8em;
+    row-gap: 8px;
+  }
+
+  .lab-medida .lab-trilho {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+.lab-heroi-linha,
+.lab-analisar {
+  flex-wrap: wrap !important;
+  column-gap: clamp(24px, 4vw, 56px) !important;
+}
+
+.lab-heroi-linha > .column,
+.lab-analisar > .column {
+  flex: 1 1 320px !important;
+}
+
+/* Caixas que rolam de lado não podem alargar a página (a largura mínima delas não conta). */
+.lab-tabela {
+  contain: inline-size;
+}
+
+@media (max-width: 900px) {
+  .lab-md table {
+    contain: inline-size;
+    width: 100%;
+  }
+}
+
+/* O contorno de foco aparece na hora, sem transição. */
+.gradio-container button {
+  transition-property: background-color, border-color, color !important;
+}

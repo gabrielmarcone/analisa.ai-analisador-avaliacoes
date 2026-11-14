@@ -1,6 +1,6 @@
 """Fine-tuning do BERTimbau nas duas tarefas do projeto.
 
-Feito para rodar no Google Colab com GPU (veja ``notebooks/03_bertimbau_colab.ipynb``),
+Feito para rodar no Google Colab com GPU (veja ``notebooks/02_bertimbau_colab.ipynb``),
 mas funciona em qualquer máquina com PyTorch e Transformers instalados.
 
 Regras de honestidade da avaliação (as mesmas do baseline):
