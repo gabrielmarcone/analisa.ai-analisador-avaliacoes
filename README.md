@@ -167,19 +167,30 @@ edição manual do texto.
 
 ### Demo (Fase 7)
 
-Uma demo em Gradio no Hugging Face Spaces
-([`gmarconems/analisa-ai`](https://huggingface.co/spaces/gmarconems/analisa-ai)) classifica
-uma avaliação digitada: o **sentimento** e, se for negativa, os **tipos de problema**, com
-as probabilidades. Tem uma tela inicial para o vendedor, os relatórios de vendedores e a
-tabela de resultados. A API `/classificar` devolve a mesma previsão em JSON.
+Uma demo em Gradio classifica uma avaliação digitada: o **sentimento** e, se for negativa,
+os **tipos de problema**, com as probabilidades. Tem uma tela inicial para o vendedor, os
+relatórios de vendedores e a tabela de resultados. Ela roda no seu computador
+(`127.0.0.1`, sem link público); a API `/classificar` devolve a mesma previsão em JSON.
+
+![Uso da demo: tela inicial, análise de duas avaliações, relatório e resultados](docs/demo/demo.gif)
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu   # PyTorch só para CPU
 pip install "transformers==5.22.1"     # a versão que salvou os modelos
 python -m reviews.demo conferir    # mede os modelos publicados no teste (sem API)
 python -m reviews.demo             # abre a demo em http://127.0.0.1:7860
-python -m reviews.demo publicar    # cria ou atualiza o Space (HF_TOKEN no .env)
 ```
+
+| Análise de uma avaliação | Confiança baixa |
+|---|---|
+| ![Leitura de "Comprei há um mês e até hoje não recebi": negativa, com não recebido, atraso e atendimento](docs/demo/analisar.png) | ![Leitura de "ruim": negativa, nenhum tipo passa de 50% e aparece o aviso de confiança baixa](docs/demo/confianca-baixa.png) |
+
+| Tela inicial | Relatório de vendedor | Celular, tema escuro |
+|---|---|---|
+| ![Tela inicial para o vendedor, com uma leitura de exemplo](docs/demo/inicio.png) | ![Relatório do vendedor 4a3ca931 com os números principais no topo](docs/demo/relatorio.png) | ![Leitura no celular com o tema escuro](docs/demo/celular-escuro.png) |
+
+As probabilidades nos prints e no vídeo são as que os modelos publicados deram para esses
+exemplos (gravadas em [`reports/demo_conferencia.json`](reports/demo_conferencia.json)).
 
 - **Mesmo caminho da avaliação:** o texto passa pela mesma limpeza da base (título +
   comentário), pela mesma tokenização e pelas mesmas regras de previsão do teste: tipo
@@ -188,8 +199,8 @@ python -m reviews.demo publicar    # cria ou atualiza o Space (HF_TOKEN no .env)
 - **`conferir`** baixa os modelos do Hub, roda o conjunto de teste com o código da demo e
   compara o F1 com o registrado em `resultados.json`; o resultado e as previsões dos
   exemplos ficam em [`reports/demo_conferencia.json`](reports/demo_conferencia.json).
-- **Só BERTimbau na demo:** não há custo por visita nem chave de API no Space; o LLM
-  aparece só na tabela de resultados.
+- **Só BERTimbau na demo:** não há custo por avaliação nem chave de API; o LLM aparece só
+  na tabela de resultados.
 - **Tipos de problema só em negativas:** o modelo foi treinado só com elas; numa
   avaliação positiva, a demo diz que não se aplica em vez de mostrar um resultado sem
   sentido.
@@ -199,12 +210,12 @@ python -m reviews.demo publicar    # cria ou atualiza o Space (HF_TOKEN no .env)
   relatórios; a leitura de exemplo é feita pelo modelo na hora. Nada é digitado à mão.
 - **Identidade visual própria** (`demo_ui.py` e `demo.css`): contraste WCAG AA nos temas
   claro e escuro (conferido com axe-core), navegação por teclado com foco visível, alvos
-  de toque de 44 px e layout para celular. O texto digitado é escapado antes de virar HTML.
+  de toque de 44 px e layout para celular. O texto digitado é escapado antes de virar HTML
+  e não é guardado.
 - A demo só faz previsão e não precisa do `accelerate`; para rodar também o teste de
   treino do BERTimbau, instale `requirements-bert.txt` (sem ele, esse teste é pulado).
-- **`publicar`** monta o Space a partir de uma lista fechada de arquivos (código da demo,
-  relatórios e resultados) em `build/space/`; dados, modelos locais e o `.env` nunca vão.
-  Os textos digitados não são guardados.
+- **Sem site público:** desde 2026 o Hugging Face cobra para hospedar Spaces em Gradio
+  (só os Spaces estáticos continuam gratuitos), e o projeto não usa serviço pago.
 
 ### Resultados
 
@@ -307,20 +318,20 @@ O **código** deste repositório está sob a [licença MIT](LICENSE). Os **dados
 | Relatório por vendedor só com pedidos de um único vendedor | Num pedido com vários vendedores, a avaliação não diz de quem é a culpa. |
 | Relatórios: nota e negativas sobre todas as avaliações; atraso sobre todos os pedidos entregues | Só 41% das avaliações têm comentário, e quem está insatisfeito escreve mais; medir tudo nas comentadas mostraria vendedores e marketplace piores do que são. |
 | Negativa que o classificador não classifica fica fora das porcentagens do relatório | Contá-la como "outro problema" inflaria essa categoria sem ninguém ver. |
-| Demo só com os BERTimbau, em CPU | Sem custo por visita e sem chave de API num site público; é o hardware gratuito do Spaces. |
-| Demo confere os modelos do Hub no teste antes de publicar | Garante que o que a demo mostra é o que foi medido (mesmos modelos, mesmo código de previsão). |
+| Demo só com os BERTimbau, em CPU | Roda em qualquer computador, sem custo por avaliação e sem chave de API. |
+| Demo confere os modelos do Hub no teste | Garante que o que a demo mostra é o que foi medido (mesmos modelos, mesmo código de previsão). |
+| Demo sem site público, mostrada em prints e vídeo | Hospedar Gradio no Hugging Face passou a ser pago; um site estático exigiria reescrever a leitura em JavaScript. |
 | Leitura da demo com veredito em frase, limite de 50% desenhado e aviso de confiança baixa | Quem usa precisa da resposta antes dos gráficos, e a regra da avaliação fica visível em vez de escondida num texto. |
 
 ## Estrutura
 
 ```
 src/reviews/      código do projeto (dados, anotação, avaliação, baseline, BERTimbau, LLM, agente, demo)
-docs/             guia de anotação
+docs/             guia de anotação; prints e vídeo da demo (docs/demo/)
 annotations/      fila e rótulos da anotação (só IDs, sem texto)
 notebooks/        análise exploratória (01) e treino do BERTimbau no Colab (02)
 splits/           IDs da divisão treino/validação/teste
 reports/          resultados por modelo (`resultados.md`), figuras e relatórios dos vendedores
 models/           modelos treinados (fora do Git)
-build/            pasta montada para publicar o Space (fora do Git)
 tests/            testes automatizados
 ```

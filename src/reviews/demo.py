@@ -14,10 +14,13 @@ A API ``/classificar`` devolve a previsão em JSON. Nada aqui chama API paga: o 
 só nos resultados. A demo não guarda o que é digitado. O visual (tema, CSS e HTML) fica
 em ``demo_ui.py`` e ``demo.css``.
 
+A demo roda só no computador (127.0.0.1, sem link público): desde 2026 o Hugging Face
+cobra para hospedar Spaces em Gradio, e o projeto não usa serviço pago. O README mostra a
+demo em prints e num vídeo curto.
+
 Uso:
     python -m reviews.demo                     # abre em http://127.0.0.1:7860
     python -m reviews.demo conferir            # mede os modelos do Hub no teste (sem API)
-    python -m reviews.demo publicar --usuario SEU_USUARIO_HF   # token em HF_TOKEN
 
 PyTorch, Transformers e Gradio são importados só onde são usados.
 """
@@ -27,7 +30,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -42,14 +44,11 @@ from reviews.baseline import TASK_PROBLEMS, TASK_SENTIMENT
 from reviews.data import build_text, clean_text
 from reviews.evaluate import comparison_markdown, fmt_br, load_results
 from reviews.labels import NEGATIVE
-from reviews.paths import PROJECT_ROOT, REPORTS_DIR, RESULTS_FILE
+from reviews.paths import REPORTS_DIR, RESULTS_FILE
 from reviews.splits import TEST
 
 HF_USER = "gmarconems"
-SPACE_NAME = "analisa-ai"
 GITHUB_URL = "https://github.com/gabrielmarcone/analisa.ai-analisador-avaliacoes"
-GRADIO_VERSION = "6.31.0"  # a versão testada; o Space usa exatamente esta
-TRANSFORMERS_VERSION = "5.22.1"  # a mesma que salvou os modelos publicados
 MAX_TITLE_CHARS = 100
 MAX_COMMENT_CHARS = 1000
 REPORTS_SUBDIR = "relatorios"
@@ -380,7 +379,7 @@ def build_app(
         to_report.click(go("relatorios"), None, tabs, js=SCROLL_TOP, **hidden)
         to_reports.click(go("relatorios"), None, tabs, js=SCROLL_TOP, **hidden)
         gr.api(classificar, api_name="classificar")
-    # Uma previsão por vez: o Space gratuito tem 2 CPUs, e o PyTorch já usa as duas.
+    # Uma previsão por vez: o PyTorch já usa todos os núcleos da CPU numa previsão.
     app.queue(max_size=20, default_concurrency_limit=1)
     return app
 
@@ -400,7 +399,7 @@ def check_models(
 
     Não grava nada em ``resultados.json`` (o teste já foi medido); só confere que os
     modelos publicados, com o caminho de código da demo, dão o mesmo F1. Também grava as
-    previsões dos exemplos da demo, para conferir o Space depois de publicado.
+    previsões dos exemplos da demo, a referência para conferir o que a tela mostra.
     """
     from reviews.baseline import problem_frame, sentiment_frame, split_frames
 
@@ -453,158 +452,18 @@ def check_models(
     return report
 
 
-# ---------------------------------------------------------------------------
-# Publicação no Hugging Face Spaces
-# ---------------------------------------------------------------------------
-
-# Arquivos de src/reviews que a demo usa (conferido por teste: o Space roda só com eles).
-SPACE_MODULES = (
-    "__init__.py",
-    "annotation.py",
-    "baseline.py",
-    "bert.py",
-    "data.py",
-    "demo.css",
-    "demo.py",
-    "demo_ui.py",
-    "evaluate.py",
-    "labels.py",
-    "paths.py",
-    "splits.py",
-)
-
-SPACE_REQUIREMENTS = f"""# Gradio vem do Space (sdk_version no README).
-# PyTorch só para CPU: o Space gratuito não tem GPU.
---extra-index-url https://download.pytorch.org/whl/cpu
-torch>=2.4,<3
-transformers=={TRANSFORMERS_VERSION}
-pandas>=2.2
-numpy>=1.26
-scikit-learn>=1.5
-joblib>=1.3
-"""
-
-SPACE_APP = '''"""Ponto de entrada do Space; a demo fica em src/reviews/demo.py."""
-
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
-
-from reviews.demo import Classifier, build_app, launch  # noqa: E402
-
-launch(build_app(Classifier(user="{user}")))
-'''
-
-
-def space_readme(user: str) -> str:
-    sentiment, problems = bert.repo_id(user, TASK_SENTIMENT), bert.repo_id(user, TASK_PROBLEMS)
-    return f"""---
-title: analisa.ai · avaliações de e-commerce
-emoji: 🛒
-colorFrom: indigo
-colorTo: green
-sdk: gradio
-sdk_version: {GRADIO_VERSION}
-python_version: "3.12"
-app_file: app.py
-pinned: false
-license: cc-by-nc-sa-4.0
-short_description: Sentimento e tipos de problema em avaliações (BERTimbau)
-models:
-  - {sentiment}
-  - {problems}
----
-
-# analisa.ai · avaliações de e-commerce
-
-Classifica avaliações de clientes de e-commerce brasileiro: **sentimento** e, nas
-negativas, **tipos de problema** (atraso, não recebido, defeito, atendimento…), com dois
-BERTimbau ajustados na base pública da Olist. Também mostra relatórios de vendedores
-escritos por um agente e a comparação com um TF-IDF e com um LLM sem treino.
-
-- Código e metodologia: {GITHUB_URL}
-- Modelos: [{sentiment}](https://huggingface.co/{sentiment}) e
-  [{problems}](https://huggingface.co/{problems})
-- Os textos digitados não são guardados.
-
-Dados da Olist sob CC BY-NC-SA 4.0; os modelos e os relatórios seguem a mesma licença.
-Este Space é gerado por `python -m reviews.demo publicar`, a partir do repositório.
-"""
-
-
-def build_space(output: Path, user: str = HF_USER, root: Path = PROJECT_ROOT) -> list[str]:
-    """Monta a pasta do Space só com o que a demo precisa (lista fechada de arquivos)."""
-    output, root = Path(output), Path(root)
-    if output.exists():
-        shutil.rmtree(output)
-    (output / "src" / "reviews").mkdir(parents=True)
-    for name in SPACE_MODULES:
-        shutil.copy2(root / "src" / "reviews" / name, output / "src" / "reviews" / name)
-    reports = root / "reports"
-    (output / "reports" / REPORTS_SUBDIR).mkdir(parents=True)
-    shutil.copy2(reports / "resultados.json", output / "reports" / "resultados.json")
-    for path in sorted((reports / REPORTS_SUBDIR).glob("vendedor_*")):
-        shutil.copy2(path, output / "reports" / REPORTS_SUBDIR / path.name)
-    files = {
-        "app.py": SPACE_APP.replace("{user}", user),
-        "requirements.txt": SPACE_REQUIREMENTS,
-        "README.md": space_readme(user),
-    }
-    for name, text in files.items():
-        (output / name).write_text(text, encoding="utf-8", newline="\n")
-    return sorted(
-        str(p.relative_to(output)).replace("\\", "/") for p in output.rglob("*") if p.is_file()
-    )
-
-
-def publish(user: str, private: bool = False, staging: Path | None = None) -> str:
-    """Cria (ou atualiza) o Space. O token vem de HF_TOKEN (ou do .env) e nunca é impresso."""
-    from dotenv import load_dotenv
-    from huggingface_hub import HfApi
-
-    load_dotenv(PROJECT_ROOT / ".env")
-    token = os.environ.get("HF_TOKEN", "").strip()
-    if not token:
-        raise SystemExit(
-            "Token não encontrado. Ponha HF_TOKEN=seu_token (de escrita) no arquivo .env "
-            "da raiz do projeto; o .env não vai para o Git."
-        )
-    bert.repo_id(user, TASK_SENTIMENT)  # valida o nome de usuário
-    staging = Path(staging or PROJECT_ROOT / "build" / "space")
-    files = build_space(staging, user)
-    repo = f"{user}/{SPACE_NAME}"
-    api = HfApi(token=token)
-    api.create_repo(repo, repo_type="space", space_sdk="gradio", private=private, exist_ok=True)
-    api.upload_folder(
-        repo_id=repo,
-        repo_type="space",
-        folder_path=str(staging),
-        commit_message="Demo do analisador de avaliações",
-        delete_patterns=["src/**", "reports/**"],  # tira arquivos que saíram da lista
-    )
-    url = f"https://huggingface.co/spaces/{repo}"
-    print(f"Publicado: {url} ({len(files)} arquivos)")
-    return url
-
-
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Demo do analisador de avaliações.")
     sub = parser.add_subparsers(dest="comando")
     run = sub.add_parser("abrir", help="abre a demo no seu computador (padrão)")
     run.add_argument("--porta", type=int, default=7860)
     sub.add_parser("conferir", help="mede os modelos do Hub no teste e salva a conferência")
-    pub = sub.add_parser("publicar", help="cria ou atualiza o Space no Hugging Face")
-    pub.add_argument("--usuario", default=HF_USER, help="seu nome de usuário no Hugging Face")
-    pub.add_argument("--privado", action="store_true", help="cria o Space como privado")
     args = parser.parse_args(argv)
 
     if args.comando == "conferir":
         report = check_models()
         if not report["confere"]:
             raise SystemExit("Os modelos do Hub não deram o F1 registrado; veja acima.")
-    elif args.comando == "publicar":
-        publish(args.usuario, private=args.privado)
     else:
         port = getattr(args, "porta", 7860)
         # Só no seu computador: nenhum link público é criado.

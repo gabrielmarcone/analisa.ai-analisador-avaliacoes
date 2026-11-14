@@ -6,10 +6,6 @@ criados aqui mesmo e só rodam onde há PyTorch e Transformers.
 """
 
 import json
-import os
-import subprocess
-import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -23,7 +19,6 @@ from reviews.data import build_text, clean_text
 from reviews.evaluate import fmt_br, load_results, save_result
 
 K = len(LABELS)
-ROOT = Path(__file__).resolve().parents[1]
 
 
 # ---------------------------------------------------------------------------
@@ -257,85 +252,6 @@ def number_in(page: str, n: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Pasta do Space e publicação
-# ---------------------------------------------------------------------------
-
-
-def test_pasta_do_space_tem_so_o_necessario(tmp_path):
-    files = demo.build_space(tmp_path / "space", user="fulano")
-    expected = {"app.py", "requirements.txt", "README.md", "reports/resultados.json"}
-    expected |= {f"src/reviews/{name}" for name in demo.SPACE_MODULES}
-    expected |= {
-        f"reports/relatorios/{p.name}" for p in (ROOT / "reports" / "relatorios").glob("vendedor_*")
-    }
-    assert set(files) == expected
-    assert not any(part in f for f in files for part in (".env", "data/", "models/", "annotations"))
-    space = tmp_path / "space"
-    assert 'Classifier(user="fulano")' in (space / "app.py").read_text(encoding="utf-8")
-    readme = (space / "README.md").read_text(encoding="utf-8")
-    yaml = pytest.importorskip("yaml")
-    meta = yaml.safe_load(readme.split("---")[1])
-    assert meta["sdk"] == "gradio" and meta["sdk_version"] == demo.GRADIO_VERSION
-    assert meta["app_file"] == "app.py" and meta["license"] == "cc-by-nc-sa-4.0"
-    assert meta["models"] == [
-        "fulano/bertimbau-olist-sentimento",
-        "fulano/bertimbau-olist-problemas",
-    ]
-    assert len(meta["short_description"]) <= 60
-    reqs = (space / "requirements.txt").read_text(encoding="utf-8")
-    assert (
-        f"transformers=={demo.TRANSFORMERS_VERSION}" in reqs and "gradio" not in reqs.split("#")[-1]
-    )
-
-    # A demo importa só módulos que vão para o Space (Python isolado, sem o repositório).
-    code = (
-        "import sys; sys.path.insert(0, 'src'); import reviews.demo, reviews.bert; "
-        "import json; print(json.dumps(sorted(m.split('.')[1] for m in sys.modules "
-        "if m.startswith('reviews.'))))"
-    )
-    run = subprocess.run(
-        [sys.executable, "-I", "-c", code], cwd=space, capture_output=True, text=True, check=True
-    )
-    imported = set(json.loads(run.stdout))
-    assert imported <= {name.removesuffix(".py") for name in demo.SPACE_MODULES}
-
-
-def test_publicar_exige_token_e_envia_a_pasta(tmp_path, monkeypatch):
-    huggingface_hub = pytest.importorskip("huggingface_hub")
-    pytest.importorskip("dotenv")
-    monkeypatch.delenv("HF_TOKEN", raising=False)
-    monkeypatch.setattr(demo, "PROJECT_ROOT", tmp_path)  # sem ler o .env de verdade
-    (tmp_path / ".env").write_text("HF_TOKEN=\n", encoding="utf-8")
-    with pytest.raises(SystemExit, match="HF_TOKEN"):
-        demo.publish("fulano", staging=tmp_path / "s")
-
-    calls = {}
-
-    class FakeApi:
-        def __init__(self, token):
-            calls["token"] = token
-
-        def create_repo(self, repo, **kwargs):
-            calls["create"] = (repo, kwargs)
-
-        def upload_folder(self, **kwargs):
-            calls["upload"] = kwargs
-            calls["files"] = sorted(p.name for p in Path(kwargs["folder_path"]).rglob("*.py"))
-
-    monkeypatch.setattr(huggingface_hub, "HfApi", FakeApi)
-    monkeypatch.setenv("HF_TOKEN", "hf_teste_falso")
-    url = demo.publish("fulano", staging=tmp_path / "s")
-    assert url == "https://huggingface.co/spaces/fulano/analisa-ai"
-    repo, kwargs = calls["create"]
-    assert repo == "fulano/analisa-ai" and kwargs["repo_type"] == "space"
-    assert kwargs["space_sdk"] == "gradio" and kwargs["exist_ok"] is True
-    assert calls["upload"]["repo_type"] == "space" and calls["upload"]["repo_id"] == repo
-    assert "app.py" in calls["files"] and "demo.py" in calls["files"]
-    with pytest.raises(ValueError):
-        demo.publish("fulano/outro", staging=tmp_path / "s")
-
-
-# ---------------------------------------------------------------------------
 # Com modelos de verdade (BERTs minúsculos), onde há PyTorch
 # ---------------------------------------------------------------------------
 
@@ -406,22 +322,3 @@ def test_app_responde_pela_api_do_gradio(tiny_models):
             client.predict("", "   ", api_name="/classificar")
     finally:
         app.close()
-
-
-def test_space_montado_roda_sozinho(tiny_models, tmp_path):
-    """A pasta do Space, sem o repositório, monta a demo com os modelos indicados."""
-    pytest.importorskip("gradio")
-    space = tmp_path / "space"
-    demo.build_space(space, user="fulano")
-    code = (
-        "import sys; sys.path.insert(0, 'src'); from reviews.demo import Classifier, build_app; "
-        "app = build_app(Classifier(user='fulano')); "
-        "from reviews import demo_ui; assert 'lab-leitura' in demo_ui.css(); demo_ui.theme(); "
-        "from reviews.demo import report_choices; print(len(report_choices()))"
-    )
-    env = {**os.environ, "PYTHONPATH": ""}
-    run = subprocess.run(
-        [sys.executable, "-c", code], cwd=space, capture_output=True, text=True, env=env
-    )
-    assert run.returncode == 0, run.stderr[-2000:]
-    assert run.stdout.strip().splitlines()[-1] == "3"
