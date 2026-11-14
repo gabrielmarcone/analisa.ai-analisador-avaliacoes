@@ -482,8 +482,14 @@ def reference_from_matrix(matrix: np.ndarray, description: str) -> dict:
     }
 
 
-def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict) -> dict:
-    """Tipos de problema nas negativas com comentário do vendedor (LLM) × referência."""
+def problems(
+    seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict, unclassified: int = 0
+) -> dict:
+    """Tipos de problema nas negativas com comentário do vendedor (LLM) × referência.
+
+    ``unclassified`` conta as negativas que o classificador não conseguiu classificar:
+    elas não entram nas porcentagens, e a saída diz quantas são.
+    """
     matrix = np.asarray(matrix, dtype=int)
     if matrix.shape != (len(seller_negatives), len(LABELS)):
         raise ValueError(
@@ -508,7 +514,7 @@ def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict
     rows.sort(key=lambda r: -r["avaliacoes"])
     for row in rows:  # empates ficam com a mesma posição
         row["posicao"] = 1 + sum(other["avaliacoes"] > row["avaliacoes"] for other in rows)
-    return {
+    out = {
         "base": "só as avaliações negativas com comentário, as únicas com texto para classificar",
         "avaliacoes_negativas_classificadas": n,
         "ordem": "da categoria mais citada para a menos citada (campo posicao)",
@@ -516,6 +522,12 @@ def problems(seller_negatives: pd.DataFrame, matrix: np.ndarray, reference: dict
         "observacao": "uma avaliação pode ter mais de um tipo de problema",
         "categorias": rows,
     }
+    if unclassified:
+        out["negativas_sem_classificacao"] = int(unclassified)
+        out["observacao_classificacao"] = (
+            "estas negativas não puderam ser classificadas e não entram nas porcentagens"
+        )
+    return out
 
 
 def examples(

@@ -7,9 +7,12 @@ Como funciona:
 2. O Claude Haiku 5.5 recebe ferramentas que devolvem números calculados com pandas
    (``sellers.py``) e trechos reais de avaliações. Ele decide o que consultar e
    escreve o relatório em Markdown.
-3. Um verificador confere cada número do texto contra o que as ferramentas
-   devolveram. Se algum não bater, o agente recebe a lista e reescreve uma vez;
-   o que sobrar fica marcado no relatório.
+3. Conferências automáticas comparam o texto com o que as ferramentas devolveram:
+   números, tabela de problemas, citações (literais e do tipo de problema certo),
+   "o mais citado" e o apoio das recomendações. Se algo não bater, o agente recebe a
+   lista e reescreve uma vez; o que sobrar fica marcado no relatório.
+4. ``conferir`` refaz tudo isso sem chamar a API: recalcula as ferramentas a partir dos
+   dados e do cache e confere de novo os relatórios publicados.
 
 O texto das avaliações é tratado como dado, nunca como instrução. Há limite de
 rodadas e de gasto por relatório.
@@ -19,6 +22,7 @@ Uso:
     python -m reviews.agent relatorio --top 3 --simular
     python -m reviews.agent relatorio --top 3
     python -m reviews.agent relatorio --vendedor ID_DO_VENDEDOR
+    python -m reviews.agent conferir                   # reconfere os relatórios, sem API
 """
 
 from __future__ import annotations
@@ -184,6 +188,7 @@ class SellerTools:
     negatives: pd.DataFrame
     matrix: np.ndarray
     reference: dict
+    unclassified: int = 0  # negativas que o classificador não conseguiu classificar
     calls: list[dict] = field(default_factory=list)
 
     def run(self, name: str, tool_input: dict) -> dict:
@@ -196,7 +201,7 @@ class SellerTools:
             "entregas": lambda: sellers.delivery(df, orders, self.seller_id),
             "evolucao_mensal": lambda: sellers.monthly(df, self.seller_id),
             "problemas_relatados": lambda: sellers.problems(
-                self.negatives, self.matrix, self.reference
+                self.negatives, self.matrix, self.reference, self.unclassified
             ),
             "exemplos_avaliacoes": lambda: sellers.examples(
                 self.negatives,
@@ -254,14 +259,31 @@ def allowed_values(outputs: list[dict]) -> list[float]:
     return values
 
 
+# Números que o próprio prompt usa como regra ("2 pontos", "3 mais citados", "3 meses").
+PROMPT_NUMBERS = frozenset({1.0, 2.0, 3.0})
+
+
 def unsupported_numbers(report: str, outputs: list[dict]) -> tuple[list[str], int]:
-    """Números do relatório que nenhuma ferramenta devolveu (com arredondamento aceito)."""
+    """Números do relatório que nenhuma ferramenta devolveu.
+
+    Um número com decimais pode vir arredondado de um valor com mais casas (27,94 → 27,9).
+    Um inteiro precisa existir como inteiro: com centenas de decimais nos resultados,
+    aceitar "28" como arredondamento de 27,94 deixaria passar por coincidência cerca de
+    um quarto dos inteiros de 0 a 200. A conferência prova que cada número existe nos
+    dados, não que foi usado no lugar certo: para isso há as conferências da tabela de
+    problemas, das citações e do ranking, e a leitura humana.
+    """
     # O sinal fica no texto ("2,9 pontos abaixo"), por isso a comparação usa o valor absoluto.
     allowed = [abs(v) for v in allowed_values(outputs)]
+    integers = {v for v in allowed if float(v).is_integer()} | PROMPT_NUMBERS
     numbers = extract_numbers(report)
     missing = []
     for token, value, decimals in numbers:
-        if not any(abs(round(v, decimals) - value) < 1e-9 for v in allowed):
+        if decimals == 0:
+            found = value in integers
+        else:
+            found = any(abs(round(v, decimals) - value) < 1e-9 for v in allowed)
+        if not found:
             missing.append(token)
     return sorted(set(missing), key=missing.index), len(numbers)
 
@@ -319,12 +341,59 @@ def unsupported_quotes(report: str, outputs: list[dict]) -> list[str]:
     return missing
 
 
+def _quote_pieces(quote: str) -> list[str]:
+    pieces = [_normalize(f).strip(" .,;:!?") for f in _ELLIPSIS.split(quote)]
+    return [piece for piece in pieces if len(piece) >= 10]
+
+
+def misattributed_quotes(report: str, negatives: pd.DataFrame, matrix: np.ndarray) -> list[str]:
+    """Citações apresentadas como exemplo de um tipo de problema que a avaliação não tem.
+
+    Na linha da citação, os tipos de problema nomeados fora das aspas precisam estar
+    entre os rótulos da avaliação citada; e uma "(nota N)" logo depois precisa ser a nota
+    dela. Linhas que não nomeiam tipo de problema não são julgadas aqui.
+    """
+    texts = [_normalize(_ELLIPSIS.sub(" ", str(text))) for text in negatives["texto"]]
+    scores = negatives["review_score"].astype(int).tolist()
+    matrix = np.asarray(matrix, dtype=int)
+    wrong = []
+    for line in report.splitlines():
+        for match in _QUOTE.finditer(line):
+            quote = match.group(1) or match.group(2)
+            if len(quote) < MIN_QUOTE_CHARS or _names_a_category(quote):
+                continue
+            pieces = _quote_pieces(quote)
+            sources = [
+                i for i, text in enumerate(texts) if pieces and all(p in text for p in pieces)
+            ]
+            if not sources:
+                continue  # citação que não existe: já é pega por unsupported_quotes
+            short = quote if len(quote) <= 60 else quote[:57] + "..."
+            outside = _plain(
+                _QUOTE.sub(lambda m: m.group(0) if _names_a_category(m.group(0)) else " ", line)
+            )
+            named = [
+                LABELS.index(c)
+                for c, pattern in _CATEGORY_PATTERNS.items()
+                if re.search(pattern, outside)
+            ]
+            if named and not any(matrix[i, j] for i in sources for j in named):
+                own = [CATEGORIES[label] for j, label in enumerate(LABELS) if matrix[sources[0], j]]
+                wrong.append(f"«{short}» (a avaliação é de: {', '.join(own) or 'nenhum tipo'})")
+            note = re.match(r"[*_\s]*\(nota (\d)\)", line[match.end() :])
+            if note and int(note.group(1)) not in {scores[i] for i in sources}:
+                wrong.append(
+                    f"«{short}» (nota {note.group(1)}; a avaliação tem nota {scores[sources[0]]})"
+                )
+    return wrong
+
+
 _RANKING_CLAIM = re.compile(
     r"mais citad|mais frequent|mais comu|principal problema|problema principal|maior problema"
 )
 _CATEGORY_PATTERNS = {
     "atraso": r"atras",
-    "nao_recebido": r"nao receb|nao chegou",
+    "nao_recebido": r"nao receb|nao chegou|nunca chegou|\bnao entrega\b",
     "incompleto": r"incomplet",
     "produto_diferente": r"produto errado|errado ou diferente|produto diferente|diferente do anunc",
     "defeito_qualidade": r"defeit|avaria|qualidade",
@@ -421,6 +490,73 @@ def wrong_rankings(report: str, outputs: list[dict]) -> list[str]:
     return wrong
 
 
+_PROBLEMS_SECTION = re.compile(r"(?ms)^##\s*Principais problemas[^\n]*$(.*?)(?=^##\s|\Z)")
+_SIGNED = re.compile(r"([+\-−])\s*(\d+(?:[.,]\d+)?)")
+
+
+def wrong_table_rows(report: str, outputs: list[dict]) -> list[str]:
+    """Linhas da tabela de problemas com números de outra categoria, sinal trocado ou fora de ordem.
+
+    Cada linha que nomeia um tipo de problema só pode ter os números desse tipo: posição,
+    avaliações, % das negativas com comentário, % da referência e a diferença (com o
+    sinal certo, quando houver sinal). As linhas precisam seguir a ordem do mais citado.
+    """
+    problems = next((o for o in outputs if "avaliacoes_negativas_classificadas" in o), None)
+    section = _PROBLEMS_SECTION.search(report)
+    if problems is None or section is None:
+        return []
+    rows = {row["categoria"]: row for row in problems["categorias"]}
+    wrong, order = [], []
+    for line in section.group(1).splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        named = {
+            c
+            for cell in cells
+            if not re.search(r"\d", cell)
+            for c, pattern in _CATEGORY_PATTERNS.items()
+            if re.search(pattern, _plain(cell))
+        }
+        if len(named) != 1 or next(iter(named)) not in rows:
+            continue  # cabeçalho, separador ou linha que não é de um tipo só
+        row = rows[next(iter(named))]
+        diff = row["diferenca_pontos_percentuais"] or 0.0
+        values = [
+            row["posicao"],
+            row["avaliacoes"],
+            row["pct_das_negativas_com_comentario"],
+            row["pct_referencia_marketplace"],
+            abs(diff),
+        ]
+        values = [float(v) for v in values if v is not None]
+        bad = []
+        for cell in cells:
+            for token, value, decimals in extract_numbers(cell):
+                if decimals == 0:
+                    found = value in {v for v in values if v.is_integer()}
+                else:
+                    found = any(abs(round(v, decimals) - value) < 1e-9 for v in values)
+                if not found:
+                    bad.append(token)
+            for sign, number in _SIGNED.findall(cell):
+                value = float(number.replace(",", "."))
+                if diff and abs(abs(diff) - value) < 1e-9 and (sign == "+") != (diff > 0):
+                    bad.append(sign + number)
+        if bad:
+            wrong.append(
+                f"«{row['nome']}»: {', '.join(bad)} (pela contagem: {row['avaliacoes']} "
+                f"avaliações, {fmt_br(row['pct_das_negativas_com_comentario'], 1)}%, "
+                f"referência {fmt_br(row['pct_referencia_marketplace'], 1)}%, diferença "
+                f"{'+' if diff > 0 else ''}{fmt_br(diff, 1)})"
+            )
+        order.append(row["posicao"])
+    if order != sorted(order):
+        wrong.append("a tabela não segue a ordem do mais citado para o menos citado")
+    return wrong
+
+
 RECOMMENDATION_TOP_K = 3  # recomendação sobre tipo de problema: um dos 3 mais citados...
 RECOMMENDATION_MIN_PP = 2.0  # ...ou pelo menos 2 pontos acima da referência
 _RECOMMENDATIONS = re.compile(r"(?ms)^##\s*Recomenda\w*\s*$(.*?)(?=^##\s|\Z)")
@@ -467,6 +603,114 @@ def weak_recommendations(report: str, outputs: list[dict]) -> list[str]:
     return weak
 
 
+# Sem estas consultas, o relatório não teria de onde tirar as seções obrigatórias, e as
+# conferências do ranking, da tabela e das recomendações não teriam com o que comparar.
+REQUIRED_TOOLS = (
+    "resumo_vendedor",
+    "comparar_com_marketplace",
+    "entregas",
+    "evolucao_mensal",
+    "problemas_relatados",
+)
+
+
+@dataclass
+class Findings:
+    """Resultado das conferências automáticas de um texto."""
+
+    numbers_checked: int = 0
+    unsupported: list[str] = field(default_factory=list)
+    unsupported_quotes: list[str] = field(default_factory=list)
+    misattributed_quotes: list[str] = field(default_factory=list)
+    wrong_table_rows: list[str] = field(default_factory=list)
+    wrong_rankings: list[str] = field(default_factory=list)
+    weak_recommendations: list[str] = field(default_factory=list)
+    missing_tools: list[str] = field(default_factory=list)
+
+    def requests(self) -> list[str]:
+        """O que pedir ao modelo numa reescrita."""
+        asks = []
+        if self.missing_tools:
+            asks.append(
+                "consulte também estas ferramentas, que o relatório precisa: "
+                + ", ".join(self.missing_tools)
+            )
+        if self.unsupported:
+            asks.append(
+                "estes números não aparecem nos resultados das ferramentas: "
+                + ", ".join(self.unsupported)
+            )
+        if self.unsupported_quotes:
+            asks.append(
+                "estes trechos entre aspas não aparecem nas avaliações devolvidas: "
+                + " | ".join(self.unsupported_quotes)
+            )
+        if self.misattributed_quotes:
+            asks.append(
+                "estas citações estão atribuídas a um tipo de problema ou a uma nota que não "
+                "são os da avaliação: " + " | ".join(self.misattributed_quotes)
+            )
+        if self.wrong_table_rows:
+            asks.append(
+                "a tabela de problemas não bate com a contagem: "
+                + " | ".join(self.wrong_table_rows)
+            )
+        if self.wrong_rankings:
+            asks.append(
+                "estas frases chamam de mais citado um problema fora do topo: "
+                + " | ".join(self.wrong_rankings)
+            )
+        if self.weak_recommendations:
+            asks.append(
+                "estas recomendações se apoiam só em tipos de problema que não estão entre "
+                f"os {RECOMMENDATION_TOP_K} mais citados nem acima da referência; retire-as "
+                "ou apoie-as em outro dado do relatório: " + " | ".join(self.weak_recommendations)
+            )
+        return asks
+
+    def flags(self) -> list[str]:
+        """O que fica marcado no relatório se sobrar depois da reescrita."""
+        named = (
+            ("ferramentas não consultadas", self.missing_tools, ", "),
+            ("números", self.unsupported, ", "),
+            ("citações", self.unsupported_quotes, " | "),
+            ("citações atribuídas", self.misattributed_quotes, " | "),
+            ("tabela", self.wrong_table_rows, " | "),
+            ("ranking", self.wrong_rankings, " | "),
+            ("recomendações", self.weak_recommendations, " | "),
+        )
+        return [f"{label} {sep.join(items)}" for label, items, sep in named if items]
+
+    def to_json(self) -> dict:
+        return {
+            "numeros_conferidos": self.numbers_checked,
+            "numeros_sem_fonte": self.unsupported,
+            "citacoes_sem_fonte": self.unsupported_quotes,
+            "citacoes_mal_atribuidas": self.misattributed_quotes,
+            "tabela_de_problemas": self.wrong_table_rows,
+            "rankings_errados": self.wrong_rankings,
+            "recomendacoes_sem_apoio": self.weak_recommendations,
+            "ferramentas_nao_consultadas": self.missing_tools,
+        }
+
+
+def check_report(body: str, tools: SellerTools) -> Findings:
+    """Todas as conferências automáticas de um texto contra o que as ferramentas devolveram."""
+    outputs = [call["saida"] for call in tools.calls]
+    unsupported, checked = unsupported_numbers(body, outputs)
+    called = {call["ferramenta"] for call in tools.calls}
+    return Findings(
+        numbers_checked=checked,
+        unsupported=unsupported,
+        unsupported_quotes=unsupported_quotes(body, outputs),
+        misattributed_quotes=misattributed_quotes(body, tools.negatives, tools.matrix),
+        wrong_table_rows=wrong_table_rows(body, outputs),
+        wrong_rankings=wrong_rankings(body, outputs),
+        weak_recommendations=weak_recommendations(body, outputs),
+        missing_tools=[name for name in REQUIRED_TOOLS if name not in called],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Classificação das negativas do vendedor
 # ---------------------------------------------------------------------------
@@ -483,6 +727,24 @@ class Cost:
         return f"US$ {self.total_usd:.4f} (gasto agora: US$ {self.new_usd:.4f})"
 
 
+@dataclass(frozen=True)
+class Classification:
+    """Negativas com comentário do vendedor e os tipos de problema de cada uma."""
+
+    negatives: pd.DataFrame  # só as que o classificador conseguiu classificar
+    matrix: np.ndarray
+    cost: Cost
+    unclassified: tuple[str, ...] = ()  # review_ids que falharam três vezes
+
+
+def _offline_check(pending: int, what: str, offline: bool) -> None:
+    if pending and offline:
+        raise SystemExit(
+            f"{pending} lotes de {what} não estão no cache; a conferência não chama a API. "
+            "Gere o relatório antes com `python -m reviews.agent relatorio`."
+        )
+
+
 def classify_negatives(
     df: pd.DataFrame,
     seller_id: str,
@@ -490,22 +752,37 @@ def classify_negatives(
     limit_usd: float = DEFAULT_LIMIT_USD,
     cache_dir: Path = llm.CACHE_DIR,
     progress: Callable[[str], None] = print,
-) -> tuple[pd.DataFrame, np.ndarray, Cost]:
-    """Tipos de problema das negativas com comentário, com o classificador da Fase 5."""
+    offline: bool = False,
+) -> Classification:
+    """Tipos de problema das negativas com comentário, com o classificador da Fase 5.
+
+    Uma avaliação que o classificador não consegue classificar (resposta fora do formato
+    três vezes) fica de fora das porcentagens e é contada à parte. Na Fase 5 ela recebia
+    "outro problema" e contava como erro do modelo, o que é o certo para medir o modelo;
+    aqui, inflaria "outro problema" no relatório do vendedor sem ninguém ver.
+    """
     negatives = sellers.commented_negatives(df, seller_id)
     if negatives.empty:
-        return negatives, np.zeros((0, len(LABELS)), dtype=int), Cost(0.0, 0.0)
+        return Classification(negatives, np.zeros((0, len(LABELS)), dtype=int), Cost(0.0, 0.0))
     config = llm.RunConfig(task=TASK_PROBLEMS, effort=PROBLEMS_EFFORT)
     split = f"vendedor_{seller_id[:8]}"
     pending = llm._pending_batches(negatives, config, split, cache_dir)
+    _offline_check(pending, f"classificação do vendedor {seller_id[:8]}", offline)
     if pending and client is None:
         client = llm.make_client()
     classifier = llm.Classifier(client, config) if client is not None else None
     run = llm.run_split(
         negatives, config, split, classifier, llm.DEFAULT_PARALLEL, limit_usd, cache_dir, progress
     )
-    matrix = llm.problems_to_matrix(run.predictions)
-    return negatives, matrix, Cost(llm.cost_usd(llm._sum_usage(run.records)), run.new_cost_usd)
+    failed = set(run.failed_ids)
+    keep = ~negatives["review_id"].isin(failed).to_numpy()
+    cost = Cost(llm.cost_usd(llm._sum_usage(run.records)), run.new_cost_usd)
+    return Classification(
+        negatives[keep].reset_index(drop=True),
+        llm.problems_to_matrix(run.predictions)[keep],
+        cost,
+        tuple(rid for rid in negatives["review_id"] if rid in failed),
+    )
 
 
 def build_reference(
@@ -514,6 +791,7 @@ def build_reference(
     limit_usd: float = DEFAULT_LIMIT_USD,
     cache_dir: Path = llm.CACHE_DIR,
     progress: Callable[[str], None] = print,
+    offline: bool = False,
 ) -> tuple[dict, Cost]:
     """Referência do marketplace medida com o MESMO classificador usado no vendedor.
 
@@ -522,16 +800,18 @@ def build_reference(
     de validação e teste, o LLM marca "outro problema" em 11,6% delas e a anotação, em
     10,0%; essa diferença apareceria como se fosse do vendedor. Validação e teste já
     estão no cache da Fase 5 (mesmos lotes); só o treino é classificado aqui. A trava
-    de gasto vale para a soma das três partes.
+    de gasto vale para a soma das três partes. Avaliações que o classificador não
+    conseguiu classificar ficam de fora, como no vendedor.
     """
     frame = problem_frame() if frame is None else frame
     parts = split_frames(frame)
     config = llm.RunConfig(task=TASK_PROBLEMS, effort=PROBLEMS_EFFORT)
     pending = sum(llm._pending_batches(parts[s], config, s, cache_dir) for s in (TRAIN, VAL, TEST))
+    _offline_check(pending, "referência do marketplace", offline)
     if pending and client is None:
         client = llm.make_client()
     classifier = llm.Classifier(client, config) if client is not None else None
-    predictions, total, new = [], 0.0, 0.0
+    predictions, total, new, failed = [], 0.0, 0.0, 0
     for split in (TRAIN, VAL, TEST):
         run = llm.run_split(
             parts[split],
@@ -543,13 +823,21 @@ def build_reference(
             cache_dir,
             progress,
         )
-        predictions.extend(run.predictions)
+        bad = set(run.failed_ids)
+        predictions.extend(
+            p
+            for p, rid in zip(run.predictions, parts[split]["review_id"], strict=True)
+            if rid not in bad
+        )
+        failed += len(bad)
         total += llm.cost_usd(llm._sum_usage(run.records))
         new += run.new_cost_usd
     description = (
         f"o mesmo classificador aplicado às {len(predictions)} avaliações negativas com "
         "comentário sorteadas do marketplace (as mesmas anotadas à mão no projeto)"
     )
+    if failed:
+        description += f"; {failed} não puderam ser classificadas e ficaram de fora"
     reference = sellers.reference_from_matrix(llm.problems_to_matrix(predictions), description)
     return reference, Cost(total, new)
 
@@ -564,13 +852,9 @@ class AgentResult:
     body: str
     calls: int
     usage: dict
-    unsupported: list[str]
-    numbers_checked: int
     revisions: int
-    unsupported_quotes: list[str] = field(default_factory=list)
+    findings: Findings = field(default_factory=Findings)
     revision_reasons: list[str] = field(default_factory=list)
-    wrong_rankings: list[str] = field(default_factory=list)
-    weak_recommendations: list[str] = field(default_factory=list)
 
     @property
     def cost_usd(self) -> float:
@@ -593,8 +877,7 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
     ]
     usage_total = {key: 0 for key in [*llm.PRICES_USD_PER_MTOK, "thinking_tokens"]}
     calls = revisions = 0
-    body, unsupported, checked, bad_quotes, reasons, rankings = "", [], 0, [], [], []
-    weak: list[str] = []
+    body, findings, reasons = "", Findings(), []
 
     while calls < MAX_CALLS:
         response = client.messages.create(
@@ -646,44 +929,19 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
             raise RuntimeError(f"O modelo parou de forma inesperada: {response.stop_reason}.")
 
         body = _text_of(response.content)
-        outputs = [call["saida"] for call in tools.calls]
-        unsupported, checked = unsupported_numbers(body, outputs)
-        bad_quotes = unsupported_quotes(body, outputs)
-        rankings = wrong_rankings(body, outputs)
-        weak = weak_recommendations(body, outputs)
         if not body:
             raise RuntimeError("O modelo terminou sem escrever o relatório.")
-        if (unsupported or bad_quotes or rankings or weak) and revisions < MAX_REVISIONS:
+        findings = check_report(body, tools)
+        asks = findings.requests()
+        if asks and revisions < MAX_REVISIONS:
             revisions += 1
-            problems = []
-            if unsupported:
-                problems.append(
-                    "estes números não aparecem nos resultados das ferramentas: "
-                    + ", ".join(unsupported)
-                )
-            if bad_quotes:
-                problems.append(
-                    "estes trechos entre aspas não aparecem nas avaliações devolvidas: "
-                    + " | ".join(bad_quotes)
-                )
-            if rankings:
-                problems.append(
-                    "estas frases chamam de mais citado um problema fora do topo: "
-                    + " | ".join(rankings)
-                )
-            if weak:
-                problems.append(
-                    "estas recomendações se apoiam só em tipos de problema que não estão entre "
-                    f"os {RECOMMENDATION_TOP_K} mais citados nem acima da referência; retire-as "
-                    "ou apoie-as em outro dado do relatório: " + " | ".join(weak)
-                )
-            reasons.extend(problems)
+            reasons.extend(asks)
             messages.append(
                 {
                     "role": "user",
                     "content": (
                         "Corrija o relatório: "
-                        + "; ".join(problems)
+                        + "; ".join(asks)
                         + ". Reescreva o relatório inteiro usando apenas valores e trechos "
                         "devolvidos pelas ferramentas (você pode consultá-las de novo). "
                         "Não faça contas e não altere citações."
@@ -699,13 +957,9 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
         body=body,
         calls=calls,
         usage=usage_total,
-        unsupported=unsupported,
-        numbers_checked=checked,
         revisions=revisions,
-        unsupported_quotes=bad_quotes,
+        findings=findings,
         revision_reasons=reasons,
-        wrong_rankings=rankings,
-        weak_recommendations=weak,
     )
 
 
@@ -714,58 +968,97 @@ def run_agent(client, tools: SellerTools, limit_usd: float = DEFAULT_LIMIT_USD) 
 # ---------------------------------------------------------------------------
 
 
+METHOD_HEADING = "## Como este relatório foi feito"
+CHECKS_DONE = (
+    "cada número do texto existe nos resultados das ferramentas; a tabela de problemas bate, "
+    "linha a linha, com a contagem; cada citação é literal e vem de uma avaliação do tipo de "
+    "problema a que é atribuída; as menções ao problema mais citado e as recomendações sobre "
+    "tipos de problema batem com a contagem e com a referência"
+)
+
+
 def methodology(
-    classification: Cost, result: AgentResult, n_negatives: int, reference: Cost | None = None
+    classification: Classification,
+    result: AgentResult,
+    reference: tuple[dict, Cost] | None = None,
 ) -> str:
-    problems = []
-    if result.unsupported:
-        problems.append("números " + ", ".join(result.unsupported))
-    if result.unsupported_quotes:
-        problems.append("citações " + " | ".join(result.unsupported_quotes))
-    if result.wrong_rankings:
-        problems.append("ranking " + " | ".join(result.wrong_rankings))
-    if result.weak_recommendations:
-        problems.append("recomendações " + " | ".join(result.weak_recommendations))
+    flags = result.findings.flags()
     check = (
-        f"Os {result.numbers_checked} números, as citações, as menções ao problema mais "
-        "citado e as recomendações sobre tipos de problema foram conferidos automaticamente "
-        "com os resultados das ferramentas: todos conferem."
-        if not problems
-        else "⚠️ Sem correspondência nos dados: " + "; ".join(problems) + ". Confira antes de usar."
+        f"Conferência automática ({result.findings.numbers_checked} números): {CHECKS_DONE}."
+        + (
+            " Tudo confere."
+            if not flags
+            else " ⚠️ Não conferem: " + "; ".join(flags) + ". Confira antes de usar."
+        )
     )
-    total = classification.total_usd + result.cost_usd
+    n, failed = len(classification.negatives), len(classification.unclassified)
+    classified = (
+        f"As {n} do vendedor foram classificadas"
+        if not failed
+        else f"Das {n + failed} do vendedor, {n} foram classificadas ({failed} ficaram sem "
+        "classificação depois de três tentativas e não entram nas porcentagens)"
+    )
+    reference_size = reference[0]["avaliacoes"] if reference is not None else 1500
+    total = classification.cost.total_usd + result.cost_usd
     reference_note = (
-        f" A referência do marketplace custou US$ {fmt_br(reference.total_usd, 4)} uma vez e "
+        f" A referência do marketplace custou US$ {fmt_br(reference[1].total_usd, 4)} uma vez e "
         "serve a todos os relatórios."
         if reference is not None
         else ""
     )
-    return f"""## Como este relatório foi feito
+    bullets = [
+        "**Base:** base pública da Olist (2016–2018), só pedidos com produtos de um único "
+        "vendedor. Nota, negativas, comparações e evolução usam todas as avaliações, com ou "
+        "sem comentário; o atraso usa todos os pedidos entregues. Vendedor e marketplace são "
+        "sempre medidos na mesma base.",
+        "**Tipos de problema:** só as avaliações negativas com comentário têm texto para "
+        f"classificar. {classified} pelo {llm.MODEL_NAME}, o melhor modelo do projeto nessa "
+        "tarefa (F1 macro 0,881 no teste). A referência do marketplace é o mesmo classificador "
+        f"aplicado às {reference_size} avaliações negativas com comentário sorteadas do "
+        "projeto, para que vendedor e marketplace sejam medidos com a mesma régua.",
+        f"**Texto:** escrito por um agente ({MODEL}) que só consulta números calculados com "
+        f"pandas. {check}",
+        f"**Custo:** US$ {fmt_br(total, 4)} para gerar este relatório do zero: classificação "
+        f"das negativas, US$ {fmt_br(classification.cost.total_usd, 4)}; agente "
+        f"({result.calls} chamadas), US$ {fmt_br(result.cost_usd, 4)}.{reference_note}",
+    ]
+    return METHOD_HEADING + "\n\n" + "\n".join(f"- {b}" for b in bullets) + "\n"
 
-- **Base:** base pública da Olist (2016–2018), só pedidos com produtos de um único vendedor.
-  Nota, negativas, comparações e evolução usam todas as avaliações, com ou sem comentário;
-  o atraso usa todos os pedidos entregues. Vendedor e marketplace são sempre medidos na
-  mesma base.
-- **Tipos de problema:** só as avaliações negativas com comentário têm texto para
-  classificar. As {n_negatives} do vendedor foram classificadas pelo {llm.MODEL_NAME}, o
-  melhor modelo do projeto nessa tarefa (F1 macro 0,881 no teste). A referência do
-  marketplace é o mesmo classificador aplicado às 1500 avaliações negativas com comentário
-  sorteadas do projeto, para que vendedor e marketplace sejam medidos com a mesma régua.
-- **Texto:** escrito por um agente ({MODEL}) que só consulta números calculados com
-  pandas. {check}
-- **Custo:** US$ {fmt_br(total, 4)} para gerar este relatório do zero: classificação das
-  negativas, US$ {fmt_br(classification.total_usd, 4)}; agente ({result.calls} chamadas),
-  US$ {fmt_br(result.cost_usd, 4)}.{reference_note}
-"""
+
+def _audit(seller_id: str, result: AgentResult, tools: SellerTools, classification) -> dict:
+    cost = classification.cost
+    return {
+        "vendedor": seller_id,
+        "gerado_em": datetime.now(UTC).date().isoformat(),
+        "modelo": MODEL,
+        "esforco": AGENT_EFFORT,
+        "chamadas": result.calls,
+        "reescritas": result.revisions,
+        "motivos_das_reescritas": result.revision_reasons,
+        **result.findings.to_json(),
+        "negativas_sem_classificacao": list(classification.unclassified),
+        "custo_usd": {
+            "classificacao": round(cost.total_usd, 6),
+            "agente": round(result.cost_usd, 6),
+            "total": round(cost.total_usd + result.cost_usd, 6),
+            "gasto_nesta_execucao": round(cost.new_usd + result.cost_usd, 6),
+        },
+        "tokens": result.usage,
+        "ferramentas": tools.calls,
+    }
+
+
+def _write_text(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def write_report(
     seller_id: str,
     result: AgentResult,
     tools: SellerTools,
-    classification: Cost,
+    classification: Classification,
     output_dir: Path = OUTPUT_DIR,
-    reference: Cost | None = None,
+    reference: tuple[dict, Cost] | None = None,
 ) -> Path:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -775,38 +1068,13 @@ def write_report(
         f"# Relatório de avaliações · vendedor `{short_id}`\n\n"
         f"Vendedor `{seller_id}` · gerado em {today} · base pública da Olist (2016–2018)\n\n"
     )
-    text = (
-        header
-        + result.body.strip()
-        + "\n\n"
-        + methodology(classification, result, len(tools.negatives), reference)
-    )
+    text = header + result.body.strip() + "\n\n" + methodology(classification, result, reference)
     path = output_dir / f"vendedor_{short_id}.md"
-    path.write_text(text, encoding="utf-8", newline="\n")
-    audit = {
-        "vendedor": seller_id,
-        "gerado_em": today,
-        "modelo": MODEL,
-        "esforco": AGENT_EFFORT,
-        "chamadas": result.calls,
-        "reescritas": result.revisions,
-        "motivos_das_reescritas": result.revision_reasons,
-        "numeros_conferidos": result.numbers_checked,
-        "numeros_sem_fonte": result.unsupported,
-        "citacoes_sem_fonte": result.unsupported_quotes,
-        "rankings_errados": result.wrong_rankings,
-        "recomendacoes_sem_apoio": result.weak_recommendations,
-        "custo_usd": {
-            "classificacao": round(classification.total_usd, 6),
-            "agente": round(result.cost_usd, 6),
-            "total": round(classification.total_usd + result.cost_usd, 6),
-            "gasto_nesta_execucao": round(classification.new_usd + result.cost_usd, 6),
-        },
-        "tokens": result.usage,
-        "ferramentas": tools.calls,
-    }
-    (output_dir / f"vendedor_{short_id}_ferramentas.json").write_text(
-        json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
+    _write_text(path, text)
+    audit = _audit(seller_id, result, tools, classification)
+    _write_text(
+        output_dir / f"vendedor_{short_id}_ferramentas.json",
+        json.dumps(audit, ensure_ascii=False, indent=2) + "\n",
     )
     return path
 
@@ -826,25 +1094,124 @@ def generate(
         client = llm.make_client()
     if reference is None:
         reference = build_reference(client, limit_usd=limit_usd, cache_dir=cache_dir)
-    distribution, reference_cost = reference
-    negatives, matrix, cost = classify_negatives(
-        data.reviews, seller_id, client, limit_usd, cache_dir
+    classification = classify_negatives(data.reviews, seller_id, client, limit_usd, cache_dir)
+    tools = SellerTools(
+        data,
+        seller_id,
+        classification.negatives,
+        classification.matrix,
+        reference[0],
+        unclassified=len(classification.unclassified),
     )
-    tools = SellerTools(data, seller_id, negatives, matrix, distribution)
-    result = run_agent(client, tools, limit_usd - cost.new_usd)
-    path = write_report(seller_id, result, tools, cost, output_dir, reference_cost)
-    problems = (
-        result.unsupported
-        + result.unsupported_quotes
-        + result.wrong_rankings
-        + result.weak_recommendations
-    )
-    status = "todos conferem" if not problems else f"A CONFERIR: {problems}"
+    result = run_agent(client, tools, limit_usd - classification.cost.new_usd)
+    path = write_report(seller_id, result, tools, classification, output_dir, reference)
+    flags = result.findings.flags()
+    status = "tudo confere" if not flags else f"A CONFERIR: {flags}"
+    if classification.unclassified:
+        status += f" · {len(classification.unclassified)} negativas sem classificação"
+    cost = classification.cost
     report_cost = Cost(cost.total_usd + result.cost_usd, cost.new_usd + result.cost_usd)
     print(
-        f"Relatório salvo em {path} · {result.numbers_checked} números ({status}) · {report_cost}"
+        f"Relatório salvo em {path} · {result.findings.numbers_checked} números ({status}) · "
+        f"{report_cost}"
     )
     return path
+
+
+# ---------------------------------------------------------------------------
+# Conferência dos relatórios publicados (sem API)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ReportCheck:
+    path: Path
+    tool_mismatches: list[str]
+    findings: Findings
+    unclassified: int
+
+    @property
+    def problems(self) -> list[str]:
+        out = [f"saída diferente da registrada: {name}" for name in self.tool_mismatches]
+        out += self.findings.flags()
+        if self.unclassified:
+            out.append(f"{self.unclassified} negativas sem classificação")
+        return out
+
+
+def verify_report(
+    path: Path,
+    data: sellers.SellerData,
+    reference: tuple[dict, Cost],
+    cache_dir: Path = llm.CACHE_DIR,
+    update: bool = False,
+) -> ReportCheck:
+    """Reconfere um relatório publicado sem chamar a API.
+
+    Recalcula cada consulta registrada no ``_ferramentas.json`` a partir dos dados e do
+    cache, compara com o que o agente recebeu e roda de novo todas as conferências no
+    texto. Com ``update``, reescreve só a seção "Como este relatório foi feito" e os
+    campos de conferência da auditoria (o texto do agente fica intacto), e só se as
+    ferramentas devolverem exatamente o mesmo que na geração.
+    """
+    path = Path(path)
+    audit_path = path.with_name(f"{path.stem}_ferramentas.json")
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    text = path.read_text(encoding="utf-8")
+    head, found, _ = text.partition(METHOD_HEADING)
+    parts = head.split("\n\n", 2)
+    if not found or len(parts) < 3 or f"`{audit['vendedor']}`" not in parts[1]:
+        raise ValueError(f"{path.name} não tem o formato de um relatório gerado pelo agente.")
+    header, body = parts[0] + "\n\n" + parts[1] + "\n\n", parts[2].strip()
+
+    seller_id = audit["vendedor"]
+    classification = classify_negatives(
+        data.reviews, seller_id, cache_dir=cache_dir, progress=lambda _: None, offline=True
+    )
+    tools = SellerTools(
+        data,
+        seller_id,
+        classification.negatives,
+        classification.matrix,
+        reference[0],
+        unclassified=len(classification.unclassified),
+    )
+    mismatches = [
+        call["ferramenta"]
+        for call in audit["ferramentas"]
+        if tools.run(call["ferramenta"], call["entrada"]) != call["saida"]
+    ]
+    findings = check_report(body, tools)
+    if update and not mismatches:
+        result = AgentResult(
+            body=body,
+            calls=audit["chamadas"],
+            usage=audit["tokens"],
+            revisions=audit["reescritas"],
+            findings=findings,
+            revision_reasons=audit["motivos_das_reescritas"],
+        )
+        _write_text(path, header + body + "\n\n" + methodology(classification, result, reference))
+        audit.update(findings.to_json())
+        audit["negativas_sem_classificacao"] = list(classification.unclassified)
+        audit["conferido_em"] = datetime.now(UTC).date().isoformat()
+        _write_text(audit_path, json.dumps(audit, ensure_ascii=False, indent=2) + "\n")
+    return ReportCheck(path, mismatches, findings, len(classification.unclassified))
+
+
+def verify_all(
+    output_dir: Path = OUTPUT_DIR, update: bool = False, cache_dir: Path = llm.CACHE_DIR
+) -> list[ReportCheck]:
+    paths = sorted(Path(output_dir).glob("vendedor_*.md"))
+    if not paths:
+        raise SystemExit(f"Nenhum relatório em {output_dir}.")
+    data = sellers.load_seller_data()
+    reference = build_reference(cache_dir=cache_dir, progress=lambda _: None, offline=True)
+    checks = [verify_report(p, data, reference, cache_dir, update) for p in paths]
+    for check in checks:
+        status = "tudo confere" if not check.problems else "; ".join(check.problems)
+        print(f"{check.path.name}: {check.findings.numbers_checked} números · {status}")
+    return checks
 
 
 def simulate(seller_id: str, data: sellers.SellerData) -> None:
@@ -885,8 +1252,19 @@ def main(argv: list[str] | None = None) -> None:
     rep.add_argument(
         "--limite-usd", type=float, default=DEFAULT_LIMIT_USD, help="gasto máximo por relatório"
     )
+    check = sub.add_parser("conferir", help="reconfere os relatórios publicados, sem chamar a API")
+    check.add_argument(
+        "--atualizar",
+        action="store_true",
+        help="reescreve a seção de metodologia e a auditoria com a conferência atual",
+    )
     args = parser.parse_args(argv)
 
+    if args.comando == "conferir":
+        checks = verify_all(update=args.atualizar)
+        if any(c.problems for c in checks):
+            raise SystemExit("Há relatórios que não conferem; veja acima.")
+        return
     data = sellers.load_seller_data()
     if args.comando == "vendedores":
         print(sellers.top_sellers(data.reviews, args.top).to_string())
